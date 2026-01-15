@@ -25,14 +25,14 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Browser Rendering
 
-- [ ] **BROWSER-01**: Service renders web page in headless Chrome browser
-- [ ] **BROWSER-02**: Service injects authentication cookies/tokens before page load
+- [x] **BROWSER-01**: Service renders web page in headless Chrome browser
+- [x] **BROWSER-02**: Service injects authentication cookies/tokens before page load
 - [ ] **BROWSER-03**: Service only renders HTTPS URLs (Cast security requirement)
 - [ ] **BROWSER-04**: Service allows configurable video quality (resolution + bitrate presets)
 
 ### Infrastructure
 
-- [ ] **INFRA-01**: Service packaged as Docker container with all dependencies
+- [x] **INFRA-01**: Service packaged as Docker container with all dependencies
 - [ ] **INFRA-02**: Service exposes health check endpoint for monitoring
 
 ## v2 Requirements
@@ -87,11 +87,11 @@ Which phases cover which requirements. Updated by create-roadmap.
 | CAST-03 | Phase 2 | Pending |
 | CAST-04 | Phase 2 | Pending |
 | CAST-05 | Phase 2 | Pending |
-| BROWSER-01 | Phase 1 | Pending |
-| BROWSER-02 | Phase 1 | Pending |
+| BROWSER-01 | Phase 1 | Complete |
+| BROWSER-02 | Phase 1 | Complete |
 | BROWSER-03 | Phase 5 | Pending |
 | BROWSER-04 | Phase 3 | Pending |
-| INFRA-01 | Phase 1 | Pending |
+| INFRA-01 | Phase 1 | Complete |
 | INFRA-02 | Phase 4 | Pending |
 
 **Coverage:**
