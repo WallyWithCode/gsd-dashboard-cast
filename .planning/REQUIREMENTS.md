@@ -77,28 +77,28 @@ Which phases cover which requirements. Updated by create-roadmap.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| WEBHOOK-01 | TBD | Pending |
-| WEBHOOK-02 | TBD | Pending |
-| WEBHOOK-03 | TBD | Pending |
-| WEBHOOK-04 | TBD | Pending |
-| WEBHOOK-05 | TBD | Pending |
-| CAST-01 | TBD | Pending |
-| CAST-02 | TBD | Pending |
-| CAST-03 | TBD | Pending |
-| CAST-04 | TBD | Pending |
-| CAST-05 | TBD | Pending |
-| BROWSER-01 | TBD | Pending |
-| BROWSER-02 | TBD | Pending |
-| BROWSER-03 | TBD | Pending |
-| BROWSER-04 | TBD | Pending |
-| INFRA-01 | TBD | Pending |
-| INFRA-02 | TBD | Pending |
+| WEBHOOK-01 | Phase 4 | Pending |
+| WEBHOOK-02 | Phase 4 | Pending |
+| WEBHOOK-03 | Phase 4 | Pending |
+| WEBHOOK-04 | Phase 4 | Pending |
+| WEBHOOK-05 | Phase 3 | Pending |
+| CAST-01 | Phase 2 | Pending |
+| CAST-02 | Phase 2 | Pending |
+| CAST-03 | Phase 2 | Pending |
+| CAST-04 | Phase 2 | Pending |
+| CAST-05 | Phase 2 | Pending |
+| BROWSER-01 | Phase 1 | Pending |
+| BROWSER-02 | Phase 1 | Pending |
+| BROWSER-03 | Phase 5 | Pending |
+| BROWSER-04 | Phase 3 | Pending |
+| INFRA-01 | Phase 1 | Pending |
+| INFRA-02 | Phase 4 | Pending |
 
 **Coverage:**
 - v1 requirements: 16 total
-- Mapped to phases: 0 (will be updated by create-roadmap)
-- Unmapped: 16 ⚠️
+- Mapped to phases: 16
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-01-15*
-*Last updated: 2026-01-15 after initial definition*
+*Last updated: 2026-01-15 after roadmap creation*
