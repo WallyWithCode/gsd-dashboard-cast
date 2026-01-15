@@ -64,10 +64,12 @@ Plans:
   4. End-to-end latency stays under 5 seconds
 **Research**: Likely (hardware acceleration varies by deployment target)
 **Research topics**: FFmpeg hardware acceleration options (NVENC/VAAPI/QSV), target environment GPU capabilities, low-latency tuning for streaming
-**Plans**: TBD
+**Plans**: 2/3 complete
 
 Plans:
-- [ ] TBD during planning
+- [x] 03-01: FFmpeg encoder with quality configuration and HLS output
+- [x] 03-02: Xvfb virtual display management
+- [ ] 03-03: End-to-end video pipeline integration
 
 ### Phase 4: Webhook API
 **Goal**: FastAPI webhook endpoints with async processing
@@ -108,6 +110,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 |-------|----------------|--------|-----------|
 | 1. Browser Foundation | 2/2 | Complete | 2026-01-15 |
 | 2. Cast Integration | 2/2 | Complete | 2026-01-15 |
-| 3. Video Pipeline | 0/TBD | Not started | - |
+| 3. Video Pipeline | 2/3 | In progress | - |
 | 4. Webhook API | 0/TBD | Not started | - |
 | 5. Production Readiness | 0/TBD | Not started | - |
