@@ -14,7 +14,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Browser Foundation** - Playwright automation with authentication and resource management
 - [x] **Phase 2: Cast Integration** - Cast protocol connectivity with device discovery
-- [ ] **Phase 3: Video Pipeline** - FFmpeg encoding with quality configuration
+- [x] **Phase 3: Video Pipeline** - FFmpeg encoding with quality configuration
 - [ ] **Phase 4: Webhook API** - FastAPI endpoints with async processing
 - [ ] **Phase 5: Production Readiness** - Docker packaging and documentation
 
@@ -64,12 +64,12 @@ Plans:
   4. End-to-end latency stays under 5 seconds
 **Research**: Likely (hardware acceleration varies by deployment target)
 **Research topics**: FFmpeg hardware acceleration options (NVENC/VAAPI/QSV), target environment GPU capabilities, low-latency tuning for streaming
-**Plans**: 2/3 complete
+**Plans**: Complete
 
 Plans:
 - [x] 03-01: FFmpeg encoder with quality configuration and HLS output
 - [x] 03-02: Xvfb virtual display management
-- [ ] 03-03: End-to-end video pipeline integration
+- [x] 03-03: End-to-end video pipeline integration
 
 ### Phase 4: Webhook API
 **Goal**: FastAPI webhook endpoints with async processing
@@ -110,6 +110,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 |-------|----------------|--------|-----------|
 | 1. Browser Foundation | 2/2 | Complete | 2026-01-15 |
 | 2. Cast Integration | 2/2 | Complete | 2026-01-15 |
-| 3. Video Pipeline | 2/3 | In progress | - |
+| 3. Video Pipeline | 3/3 | Complete | 2026-01-15 |
 | 4. Webhook API | 0/TBD | Not started | - |
 | 5. Production Readiness | 0/TBD | Not started | - |
