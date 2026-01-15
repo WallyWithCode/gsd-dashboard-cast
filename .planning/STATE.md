@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-01-15)
 
 **Core value:** Seamless webhook-triggered casting of authenticated web dashboards to Android TV, enabling Home Assistant automations to display contextual information on demand.
-**Current focus:** Phase 3 — Video Pipeline
+**Current focus:** Phase 4 — Webhook API
 
 ## Current Position
 
-Phase: 3 of 5 (Video Pipeline)
-Plan: 3 of 3 in current phase
-Status: Phase complete
-Last activity: 2026-01-15 — Completed 03-03-PLAN.md
+Phase: 4 of 5 (Webhook API)
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-01-15 — Phase 3 complete and verified
 
-Progress: ██████████ 100%
+Progress: ████████░░ 60%
 
 ## Performance Metrics
 

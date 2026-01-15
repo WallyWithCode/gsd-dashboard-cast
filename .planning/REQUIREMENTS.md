@@ -13,7 +13,7 @@ Requirements for initial release. Each maps to roadmap phases.
 - [ ] **WEBHOOK-02**: Service accepts POST webhook to stop active casting session
 - [ ] **WEBHOOK-03**: Webhook endpoints return immediate status (success/failure with session info)
 - [ ] **WEBHOOK-04**: Service logs all webhook requests and Cast operations for debugging
-- [ ] **WEBHOOK-05**: Webhook can specify cast duration (auto-stop after N seconds/minutes)
+- [x] **WEBHOOK-05**: Webhook can specify cast duration (auto-stop after N seconds/minutes)
 
 ### Cast Protocol
 
@@ -28,7 +28,7 @@ Requirements for initial release. Each maps to roadmap phases.
 - [x] **BROWSER-01**: Service renders web page in headless Chrome browser
 - [x] **BROWSER-02**: Service injects authentication cookies/tokens before page load
 - [ ] **BROWSER-03**: Service only renders HTTPS URLs (Cast security requirement)
-- [ ] **BROWSER-04**: Service allows configurable video quality (resolution + bitrate presets)
+- [x] **BROWSER-04**: Service allows configurable video quality (resolution + bitrate presets)
 
 ### Infrastructure
 
@@ -81,7 +81,7 @@ Which phases cover which requirements. Updated by create-roadmap.
 | WEBHOOK-02 | Phase 4 | Pending |
 | WEBHOOK-03 | Phase 4 | Pending |
 | WEBHOOK-04 | Phase 4 | Pending |
-| WEBHOOK-05 | Phase 3 | Pending |
+| WEBHOOK-05 | Phase 3 | Complete |
 | CAST-01 | Phase 2 | Complete |
 | CAST-02 | Phase 2 | Complete |
 | CAST-03 | Phase 2 | Complete |
@@ -90,7 +90,7 @@ Which phases cover which requirements. Updated by create-roadmap.
 | BROWSER-01 | Phase 1 | Complete |
 | BROWSER-02 | Phase 1 | Complete |
 | BROWSER-03 | Phase 5 | Pending |
-| BROWSER-04 | Phase 3 | Pending |
+| BROWSER-04 | Phase 3 | Complete |
 | INFRA-01 | Phase 1 | Complete |
 | INFRA-02 | Phase 4 | Pending |
 
