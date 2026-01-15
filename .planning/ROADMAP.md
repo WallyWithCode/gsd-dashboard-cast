@@ -47,10 +47,11 @@ Plans:
   4. TV wakes via HDMI-CEC when casting starts
   5. Failed connections retry with exponential backoff
 **Research**: Unlikely (pychromecast examples cover 90% of use cases, Home Assistant integration guide extensive)
-**Plans**: TBD
+**Plans**: In progress
 
 Plans:
-- [ ] TBD during planning
+- [x] 02-01: Cast device discovery and session management with HDMI-CEC wake
+- [ ] 02-02: TBD during planning
 
 ### Phase 3: Video Pipeline
 **Goal**: FFmpeg encoding with quality configuration for streaming
@@ -106,7 +107,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Browser Foundation | 2/2 | Complete | 2026-01-15 |
-| 2. Cast Integration | 0/TBD | Not started | - |
+| 2. Cast Integration | 1/2 | In progress | - |
 | 3. Video Pipeline | 0/TBD | Not started | - |
 | 4. Webhook API | 0/TBD | Not started | - |
 | 5. Production Readiness | 0/TBD | Not started | - |
