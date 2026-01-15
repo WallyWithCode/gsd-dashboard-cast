@@ -1,0 +1,10 @@
+version: '3.8'
+services:
+  cast-service:
+    build: .
+    container_name: dashboard-cast
+    shm_size: 2gb
+    environment:
+      - PYTHONUNBUFFERED=1
+    network_mode: host
+    restart: unless-stopped
