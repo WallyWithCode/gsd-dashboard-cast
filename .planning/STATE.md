@@ -42,6 +42,10 @@ Recent decisions affecting current work:
 
 | Phase | Decision | Rationale |
 |-------|----------|-----------|
+| 1 | Playwright chromium with headless mode | Better async support and Docker compatibility than Selenium |
+| 1 | Context manager pattern for browser lifecycle | Automatic resource cleanup prevents memory leaks in long-running sessions |
+| 1 | Dual auth support (cookies + localStorage) | Supports both session-based and token-based dashboard authentication |
+| 1 | Fresh browser per request | Avoids memory leaks and stale auth from persistent contexts |
 | 1 | shm_size: 2gb for Docker | Chrome requires 2GB shared memory to prevent SharedArrayBuffer crashes |
 | 1 | network_mode: host | Required for mDNS Cast device discovery |
 | 1 | Python 3.11-slim base | Playwright requires glibc (alpine uses musl) |
@@ -56,6 +60,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-01-15T21:04:44Z
-Stopped at: Completed 01-02-PLAN.md
+Last session: 2026-01-15T21:05:05Z
+Stopped at: Completed 01-01-PLAN.md (Phase 1 complete)
 Resume file: None
