@@ -8,6 +8,7 @@ from typing import Optional
 import asyncio
 import logging
 import pychromecast
+from .retry import retry_with_backoff
 
 logger = logging.getLogger(__name__)
 
@@ -32,14 +33,23 @@ class CastSessionManager:
         self.is_active = False
 
     async def __aenter__(self):
-        """Enter context manager - start Cast session with HDMI-CEC wake."""
+        """Enter context manager - start Cast session with HDMI-CEC wake and retry logic."""
         logger.info(f"Starting Cast session for device: {self.device.device.friendly_name}")
 
         try:
-            # Wait for device to be ready (blocking call)
             loop = asyncio.get_event_loop()
-            await loop.run_in_executor(None, self.device.wait)
-            logger.debug("Device ready")
+
+            # Wait for device to be ready with retry (blocking call)
+            async def wait_for_device():
+                await loop.run_in_executor(None, self.device.wait)
+                logger.debug("Device ready")
+
+            await retry_with_backoff(
+                wait_for_device,
+                max_retries=3,
+                initial_delay=1.0,
+                exceptions=(ConnectionError, TimeoutError, Exception)
+            )
 
             # Wake TV via HDMI-CEC by unmuting volume
             # This triggers HDMI-CEC wake signal built into pychromecast
