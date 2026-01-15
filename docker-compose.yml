@@ -3,8 +3,10 @@ services:
   cast-service:
     build: .
     container_name: dashboard-cast
-    shm_size: 2gb
+    shm_size: 2gb  # Required for Chrome shared memory and Xvfb operation
     environment:
       - PYTHONUNBUFFERED=1
-    network_mode: host
+      - DISPLAY=:99  # Xvfb virtual display (managed by XvfbManager in Python code)
+    network_mode: host  # Required for mDNS Cast device discovery
     restart: unless-stopped
+    # Note: Xvfb is started programmatically via XvfbManager, not as a separate service
