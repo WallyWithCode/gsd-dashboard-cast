@@ -17,11 +17,11 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Cast Protocol
 
-- [ ] **CAST-01**: Service discovers Cast devices on local network via mDNS
-- [ ] **CAST-02**: Service initiates casting to discovered Cast device
-- [ ] **CAST-03**: Service stops active casting session on command
-- [ ] **CAST-04**: Service wakes TV via HDMI-CEC when starting cast
-- [ ] **CAST-05**: Service automatically retries failed Cast connections with exponential backoff
+- [x] **CAST-01**: Service discovers Cast devices on local network via mDNS
+- [x] **CAST-02**: Service initiates casting to discovered Cast device
+- [x] **CAST-03**: Service stops active casting session on command
+- [x] **CAST-04**: Service wakes TV via HDMI-CEC when starting cast
+- [x] **CAST-05**: Service automatically retries failed Cast connections with exponential backoff
 
 ### Browser Rendering
 
@@ -82,11 +82,11 @@ Which phases cover which requirements. Updated by create-roadmap.
 | WEBHOOK-03 | Phase 4 | Pending |
 | WEBHOOK-04 | Phase 4 | Pending |
 | WEBHOOK-05 | Phase 3 | Pending |
-| CAST-01 | Phase 2 | Pending |
-| CAST-02 | Phase 2 | Pending |
-| CAST-03 | Phase 2 | Pending |
-| CAST-04 | Phase 2 | Pending |
-| CAST-05 | Phase 2 | Pending |
+| CAST-01 | Phase 2 | Complete |
+| CAST-02 | Phase 2 | Complete |
+| CAST-03 | Phase 2 | Complete |
+| CAST-04 | Phase 2 | Complete |
+| CAST-05 | Phase 2 | Complete |
 | BROWSER-01 | Phase 1 | Complete |
 | BROWSER-02 | Phase 1 | Complete |
 | BROWSER-03 | Phase 5 | Pending |
