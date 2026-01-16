@@ -3,7 +3,6 @@ Webhook endpoint handlers for Dashboard Cast Service.
 
 Implements /start and /stop endpoints following non-blocking pattern.
 """
-from fastapi import BackgroundTasks
 import uuid
 import structlog
 
@@ -17,7 +16,7 @@ def register_routes(app):
     """Register all webhook routes."""
 
     @app.post("/start", response_model=StartResponse)
-    async def start_cast(request: StartRequest, background_tasks: BackgroundTasks):
+    async def start_cast(request: StartRequest):
         """Start casting with auto-stop of previous stream.
 
         Endpoint returns immediately while stream runs in background.
@@ -25,7 +24,6 @@ def register_routes(app):
 
         Args:
             request: StartRequest with url, quality, duration
-            background_tasks: FastAPI background tasks for non-blocking execution
 
         Returns:
             StartResponse with status and session_id
@@ -36,10 +34,9 @@ def register_routes(app):
         if app.state.stream_tracker.has_active_stream():
             await app.state.stream_tracker.stop_current_stream()
 
-        # Start new stream in background
+        # Start new stream in background (create_task is non-blocking)
         session_id = str(uuid.uuid4())
-        background_tasks.add_task(
-            app.state.stream_tracker.start_stream,
+        await app.state.stream_tracker.start_stream(
             session_id,
             str(request.url),
             request.quality,

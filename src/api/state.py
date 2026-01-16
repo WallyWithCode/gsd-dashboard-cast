@@ -22,7 +22,7 @@ class StreamTracker:
         """Check if there are any active streaming tasks."""
         return len(self.active_tasks) > 0
 
-    def start_stream(self, session_id: str, url: str, quality: str, duration: Optional[int]) -> str:
+    async def start_stream(self, session_id: str, url: str, quality: str, duration: Optional[int]) -> str:
         """Launch stream as background task.
 
         Args:
