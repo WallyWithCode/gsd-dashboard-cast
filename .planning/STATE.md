@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2026-01-15)
 ## Current Position
 
 Phase: 4 of 5 (Webhook API)
-Plan: 1 of 3 in current phase
+Plan: 2 of 3 in current phase
 Status: In progress
-Last activity: 2026-01-16 — Completed 04-01-PLAN.md
+Last activity: 2026-01-16 — Completed 04-02-PLAN.md
 
-Progress: ████████░░ 62%
+Progress: ████████░░ 69%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 8
-- Average duration: 4.4 min
-- Total execution time: 0.58 hours
+- Total plans completed: 9
+- Average duration: 3.7 min
+- Total execution time: 0.55 hours
 
 **By Phase:**
 
@@ -30,11 +30,11 @@ Progress: ████████░░ 62%
 | 1. Browser Foundation | 2 | 9 min | 4.5 min |
 | 2. Cast Integration | 2 | 13 min | 6.5 min |
 | 3. Video Pipeline | 3 | 11 min | 3.7 min |
-| 4. Webhook API | 1 | 2 min | 2.0 min |
+| 4. Webhook API | 2 | 3 min | 1.5 min |
 
 **Recent Trend:**
-- Last 5 plans: 10 min, 3 min, 3 min, 5 min, 2 min
-- Trend: Steady (8 plans)
+- Last 5 plans: 3 min, 3 min, 5 min, 2 min, 1 min
+- Trend: Steady (9 plans)
 
 ## Accumulated Context
 
@@ -70,6 +70,9 @@ Recent decisions affecting current work:
 | 4 | Lifespan over @app.on_event | Using FastAPI's recommended lifespan context manager instead of deprecated @app.on_event decorators for better resource management |
 | 4 | Structured logging from start | Configured structlog with JSON output immediately to avoid migration pain later |
 | 4 | HttpUrl validation | Using Pydantic's HttpUrl type for automatic URL validation in StartRequest |
+| 4 | asyncio.create_task for streams | Using asyncio.create_task() for long-running streams that outlive request lifecycle, BackgroundTasks only for immediate return |
+| 4 | Auto-stop on new start | Automatically stop previous stream when new /start arrives for seamless transition in single-device use case |
+| 4 | Lock for thread safety | Using asyncio.Lock in StreamTracker to prevent race conditions during concurrent start/stop requests |
 
 ### Pending Todos
 
@@ -81,6 +84,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-01-16T08:56:10Z
-Stopped at: Completed 04-01-PLAN.md (FastAPI foundation with lifespan and structured logging)
+Last session: 2026-01-16T09:00:06Z
+Stopped at: Completed 04-02-PLAN.md (StreamTracker and webhook endpoints with non-blocking pattern)
 Resume file: None
