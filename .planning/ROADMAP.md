@@ -82,10 +82,12 @@ Plans:
   4. Service logs all webhook requests and operations
   5. Health check endpoint reports service status
 **Research**: Unlikely (FastAPI async patterns standard, webhook handling well-established)
-**Plans**: TBD
+**Plans**: In progress
 
 Plans:
-- [ ] TBD during planning
+- [x] 04-01: FastAPI foundation with lifespan and structured logging
+- [ ] 04-02: Webhook endpoints and stream tracking
+- [ ] 04-03: Status and health check endpoints
 
 ### Phase 5: Production Readiness
 **Goal**: Docker packaging, documentation, and manual testing support
@@ -111,5 +113,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | 1. Browser Foundation | 2/2 | Complete | 2026-01-15 |
 | 2. Cast Integration | 2/2 | Complete | 2026-01-15 |
 | 3. Video Pipeline | 3/3 | Complete | 2026-01-15 |
-| 4. Webhook API | 0/TBD | Not started | - |
+| 4. Webhook API | 1/3 | In progress | - |
 | 5. Production Readiness | 0/TBD | Not started | - |

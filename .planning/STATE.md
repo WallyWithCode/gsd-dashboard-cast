@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2026-01-15)
 ## Current Position
 
 Phase: 4 of 5 (Webhook API)
-Plan: Not started
-Status: Ready to plan
-Last activity: 2026-01-15 — Phase 3 complete and verified
+Plan: 1 of 3 in current phase
+Status: In progress
+Last activity: 2026-01-16 — Completed 04-01-PLAN.md
 
-Progress: ████████░░ 60%
+Progress: ████████░░ 62%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 7
-- Average duration: 4.7 min
-- Total execution time: 0.55 hours
+- Total plans completed: 8
+- Average duration: 4.4 min
+- Total execution time: 0.58 hours
 
 **By Phase:**
 
@@ -30,10 +30,11 @@ Progress: ████████░░ 60%
 | 1. Browser Foundation | 2 | 9 min | 4.5 min |
 | 2. Cast Integration | 2 | 13 min | 6.5 min |
 | 3. Video Pipeline | 3 | 11 min | 3.7 min |
+| 4. Webhook API | 1 | 2 min | 2.0 min |
 
 **Recent Trend:**
-- Last 5 plans: 3 min, 10 min, 3 min, 3 min, 5 min
-- Trend: Steady (7 plans)
+- Last 5 plans: 10 min, 3 min, 3 min, 5 min, 2 min
+- Trend: Steady (8 plans)
 
 ## Accumulated Context
 
@@ -66,6 +67,9 @@ Recent decisions affecting current work:
 | 3 | Duration control via asyncio.sleep() | Timeout enforced at orchestration level, duration=None supports indefinite streaming (webhook stop in Phase 4) |
 | 3 | Nested context managers for cleanup | All components use async context managers ensuring LIFO cleanup order |
 | 3 | Mock-based integration tests | Using unittest.mock for isolated testing without Xvfb, FFmpeg, or Cast devices |
+| 4 | Lifespan over @app.on_event | Using FastAPI's recommended lifespan context manager instead of deprecated @app.on_event decorators for better resource management |
+| 4 | Structured logging from start | Configured structlog with JSON output immediately to avoid migration pain later |
+| 4 | HttpUrl validation | Using Pydantic's HttpUrl type for automatic URL validation in StartRequest |
 
 ### Pending Todos
 
@@ -77,6 +81,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-01-15T22:00:00Z
-Stopped at: Completed 03-03-PLAN.md (Complete pipeline orchestration)
+Last session: 2026-01-16T08:56:10Z
+Stopped at: Completed 04-01-PLAN.md (FastAPI foundation with lifespan and structured logging)
 Resume file: None
