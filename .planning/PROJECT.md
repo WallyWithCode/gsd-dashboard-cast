@@ -31,7 +31,15 @@ Seamless webhook-triggered casting of authenticated web dashboards to Android TV
 
 ### Active
 
-(None — defining next milestone)
+**Current Milestone: v1.1 Cast Media Playback**
+
+**Goal:** Complete the Cast playback pipeline with dual-mode streaming for both dashboard reliability and camera feed low-latency.
+
+- [ ] HTTP server to serve video streams to Cast device (aiohttp)
+- [ ] Dual-mode streaming: `buffered` (HLS) and `low_latency` (fMP4)
+- [ ] Per-request mode selection via webhook `mode` parameter
+- [ ] Wire up `media_controller.play_media()` to display video on TV
+- [ ] Network configuration: `STREAM_HOST_IP` and `STREAM_PORT` env vars
 
 ### Out of Scope
 
@@ -87,4 +95,4 @@ Seamless webhook-triggered casting of authenticated web dashboards to Android TV
 | Auto-stop on new /start | Seamless transition for single-device use case | ✓ Good — No manual cleanup needed |
 
 ---
-*Last updated: 2026-01-16 after v1.0 milestone*
+*Last updated: 2026-01-16 after v1.1 milestone start*

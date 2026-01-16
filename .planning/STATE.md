@@ -5,21 +5,22 @@
 See: .planning/PROJECT.md (updated 2026-01-16)
 
 **Core value:** Seamless webhook-triggered casting of authenticated web dashboards to Android TV, enabling Home Assistant automations to display contextual information on demand.
-**Current focus:** v1.0 shipped — planning next milestone
+**Current focus:** v1.1 Cast Media Playback — dual-mode streaming
 
 ## Current Position
 
-Phase: Complete
-Plan: N/A
-Status: Milestone v1.0 shipped
-Last activity: 2026-01-16 — v1.0 milestone complete
+Phase: Not started (run /gsd:create-roadmap)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-01-16 — Milestone v1.1 started
 
-Progress: ██████████ 100% (v1.0)
+Progress: ░░░░░░░░░░ 0% (v1.1)
 
 ## Milestones
 
 | Version | Name | Status | Shipped |
 |---------|------|--------|---------|
+| v1.1 | Cast Media Playback | 🚧 Active | — |
 | v1.0 | Dashboard Cast Service | ✅ Shipped | 2026-01-16 |
 
 See: .planning/MILESTONES.md for full milestone history.
