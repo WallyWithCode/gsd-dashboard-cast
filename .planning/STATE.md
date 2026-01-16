@@ -57,9 +57,10 @@ Tracked for future milestones:
 
 ### Pending Todos
 
-1 todo pending. See `.planning/todos/pending/`
+2 todos pending. See `.planning/todos/pending/`
 
 - **Implement Cast media playback** — HTTP server + media_controller.play_media() (video)
+- **Direct RTSP to Cast streaming** — bypass browser capture for camera feeds (video)
 
 ### Blockers/Concerns
 
