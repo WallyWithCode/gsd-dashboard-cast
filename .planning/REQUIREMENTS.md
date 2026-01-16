@@ -9,10 +9,10 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Webhook API
 
-- [ ] **WEBHOOK-01**: Service accepts POST webhook to start casting with URL parameter
-- [ ] **WEBHOOK-02**: Service accepts POST webhook to stop active casting session
-- [ ] **WEBHOOK-03**: Webhook endpoints return immediate status (success/failure with session info)
-- [ ] **WEBHOOK-04**: Service logs all webhook requests and Cast operations for debugging
+- [x] **WEBHOOK-01**: Service accepts POST webhook to start casting with URL parameter
+- [x] **WEBHOOK-02**: Service accepts POST webhook to stop active casting session
+- [x] **WEBHOOK-03**: Webhook endpoints return immediate status (success/failure with session info)
+- [x] **WEBHOOK-04**: Service logs all webhook requests and Cast operations for debugging
 - [x] **WEBHOOK-05**: Webhook can specify cast duration (auto-stop after N seconds/minutes)
 
 ### Cast Protocol
@@ -33,7 +33,7 @@ Requirements for initial release. Each maps to roadmap phases.
 ### Infrastructure
 
 - [x] **INFRA-01**: Service packaged as Docker container with all dependencies
-- [ ] **INFRA-02**: Service exposes health check endpoint for monitoring
+- [x] **INFRA-02**: Service exposes health check endpoint for monitoring
 
 ## v2 Requirements
 
@@ -77,10 +77,10 @@ Which phases cover which requirements. Updated by create-roadmap.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| WEBHOOK-01 | Phase 4 | Pending |
-| WEBHOOK-02 | Phase 4 | Pending |
-| WEBHOOK-03 | Phase 4 | Pending |
-| WEBHOOK-04 | Phase 4 | Pending |
+| WEBHOOK-01 | Phase 4 | Complete |
+| WEBHOOK-02 | Phase 4 | Complete |
+| WEBHOOK-03 | Phase 4 | Complete |
+| WEBHOOK-04 | Phase 4 | Complete |
 | WEBHOOK-05 | Phase 3 | Complete |
 | CAST-01 | Phase 2 | Complete |
 | CAST-02 | Phase 2 | Complete |
@@ -92,7 +92,7 @@ Which phases cover which requirements. Updated by create-roadmap.
 | BROWSER-03 | Phase 5 | Pending |
 | BROWSER-04 | Phase 3 | Complete |
 | INFRA-01 | Phase 1 | Complete |
-| INFRA-02 | Phase 4 | Pending |
+| INFRA-02 | Phase 4 | Complete |
 
 **Coverage:**
 - v1 requirements: 16 total
