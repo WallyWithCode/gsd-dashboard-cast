@@ -57,7 +57,9 @@ Tracked for future milestones:
 
 ### Pending Todos
 
-None — milestone complete.
+1 todo pending. See `.planning/todos/pending/`
+
+- **Implement Cast media playback** — HTTP server + media_controller.play_media() (video)
 
 ### Blockers/Concerns
 
