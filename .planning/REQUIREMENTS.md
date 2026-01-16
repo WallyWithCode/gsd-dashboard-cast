@@ -27,7 +27,7 @@ Requirements for initial release. Each maps to roadmap phases.
 
 - [x] **BROWSER-01**: Service renders web page in headless Chrome browser
 - [x] **BROWSER-02**: Service injects authentication cookies/tokens before page load
-- [ ] **BROWSER-03**: Service only renders HTTPS URLs (Cast security requirement)
+- [x] **BROWSER-03**: Service accepts HTTP and HTTPS URLs with documented security considerations
 - [x] **BROWSER-04**: Service allows configurable video quality (resolution + bitrate presets)
 
 ### Infrastructure
@@ -89,7 +89,7 @@ Which phases cover which requirements. Updated by create-roadmap.
 | CAST-05 | Phase 2 | Complete |
 | BROWSER-01 | Phase 1 | Complete |
 | BROWSER-02 | Phase 1 | Complete |
-| BROWSER-03 | Phase 5 | Pending |
+| BROWSER-03 | Phase 5 | Complete |
 | BROWSER-04 | Phase 3 | Complete |
 | INFRA-01 | Phase 1 | Complete |
 | INFRA-02 | Phase 4 | Complete |
