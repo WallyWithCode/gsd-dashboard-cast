@@ -90,19 +90,20 @@ Plans:
 - [x] 04-03: Status and health check endpoints
 
 ### Phase 5: Production Readiness
-**Goal**: Docker packaging, documentation, and manual testing support
+**Goal**: Documentation and deployment configuration for production use
 **Depends on**: Phase 4
 **Requirements**: BROWSER-03
 **Success Criteria** (what must be TRUE):
-  1. Service only accepts HTTPS URLs (Cast security requirement)
-  2. Documentation covers manual testing with curl/Postman
+  1. Service accepts both HTTP and HTTPS URLs (local network dashboards)
+  2. Documentation covers deployment, API usage, and manual testing
   3. Docker deployment requires minimal setup
+  4. WSL2 mDNS limitation documented with CAST_DEVICE_IP workaround
 **Research**: Unlikely (Docker packaging established patterns)
-**Plans**: In progress
+**Plans**: Complete
 
 Plans:
-- [x] 05-01: HTTPS URL validation and error handling
-- [x] 05-02: Static IP configuration for Cast device discovery
+- [x] 05-01: Documentation and manual testing guide (README.md, .env.example)
+- [x] 05-02: Static IP configuration for Cast device discovery (CAST_DEVICE_IP)
 
 ## Progress
 

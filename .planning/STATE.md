@@ -12,7 +12,7 @@ See: .planning/PROJECT.md (updated 2026-01-15)
 Phase: 5 of 5 (Production Readiness)
 Plan: 2 of 2 in current phase
 Status: Complete
-Last activity: 2026-01-16 — Completed 05-02-PLAN.md
+Last activity: 2026-01-16 — Completed 05-01-PLAN.md
 
 Progress: ██████████ 100%
 
@@ -20,8 +20,8 @@ Progress: ██████████ 100%
 
 **Velocity:**
 - Total plans completed: 12
-- Average duration: 4.3 min
-- Total execution time: 0.95 hours
+- Average duration: 5.3 min
+- Total execution time: 1.07 hours
 
 **By Phase:**
 
@@ -31,10 +31,10 @@ Progress: ██████████ 100%
 | 2. Cast Integration | 2 | 13 min | 6.5 min |
 | 3. Video Pipeline | 3 | 11 min | 3.7 min |
 | 4. Webhook API | 3 | 18 min | 6.0 min |
-| 5. Production Readiness | 2 | 6 min | 3.0 min |
+| 5. Production Readiness | 2 | 13 min | 6.5 min |
 
 **Recent Trend:**
-- Last 5 plans: 5 min, 2 min, 1 min, 15 min, 5 min
+- Last 5 plans: 1 min, 15 min, 5 min, 8 min (last 4 plans only)
 - Trend: Steady (12 plans)
 
 ## Accumulated Context
@@ -80,6 +80,9 @@ Recent decisions affecting current work:
 | 4 | TestClient for integration tests | Using FastAPI TestClient with mocked StreamManager and Cast discovery for isolated testing without physical devices |
 | 5 | CAST_DEVICE_IP static IP override | Check environment variable before mDNS discovery with graceful fallback to address WSL2 mDNS limitation |
 | 5 | pychromecast.get_chromecasts(hosts=[ip]) | Use built-in host connection method for static IP to ensure full device metadata population |
+| 5 | HTTP URL support documented as feature | Explicitly documented HTTP URLs are supported for local network dashboards, with security consideration that users should trust URLs they cast |
+| 5 | CAST_DEVICE_IP as primary WSL2 workaround | Documentation emphasizes static IP configuration for WSL2 environments with step-by-step instructions |
+| 5 | Home Assistant integration examples | Added basic and advanced automation examples to address primary use case and accelerate user adoption |
 
 ### Pending Todos
 
@@ -96,6 +99,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-01-16T10:59:16Z
-Stopped at: Completed 05-02-PLAN.md (Static IP Configuration). WSL2 mDNS workaround implemented. Ready for 05-03 (Documentation).
+Last session: 2026-01-16T11:08:00Z
+Stopped at: Completed 05-01-PLAN.md (Documentation). Phase 5 complete. All plans executed. Project milestone complete.
 Resume file: None
