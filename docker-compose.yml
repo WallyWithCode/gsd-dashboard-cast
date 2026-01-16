@@ -5,8 +5,12 @@ services:
     container_name: dashboard-cast
     shm_size: 2gb  # Required for Chrome shared memory and Xvfb operation
     environment:
-      - PYTHONUNBUFFERED=1
-      - DISPLAY=:99  # Xvfb virtual display (managed by XvfbManager in Python code)
+      - PYTHONUNBUFFERED=1  # Real-time log output to stdout
+      - DISPLAY=:99  # Xvfb virtual display (managed by XvfbManager)
+      # Optional: Static Cast device IP (WSL2 workaround for mDNS limitation)
+      # - CAST_DEVICE_IP=10.10.0.31
+      # Optional: Discover Cast device by friendly name
+      # - CAST_DEVICE_NAME=Living Room TV
     network_mode: host  # Required for mDNS Cast device discovery
     restart: unless-stopped
     # Note: Xvfb is started programmatically via XvfbManager, not as a separate service
