@@ -8,6 +8,8 @@ from fastapi import FastAPI
 import structlog
 
 from src.api.logging_config import configure_logging
+from src.api.state import StreamTracker
+from src.api.routes import register_routes
 
 logger = structlog.get_logger()
 
@@ -24,13 +26,14 @@ async def lifespan(app: FastAPI):
     configure_logging()
     logger.info("app_startup", phase="webhook-api")
 
-    # Future: Initialize StreamTracker here (Plan 02)
+    # Initialize StreamTracker
+    app.state.stream_tracker = StreamTracker()
 
     yield
 
-    # Shutdown: Cleanup
-    logger.info("app_shutdown")
-    # Future: Cleanup active streams (Plan 02)
+    # Shutdown: Cleanup active streams
+    logger.info("app_shutdown", active_streams=len(app.state.stream_tracker.active_tasks))
+    await app.state.stream_tracker.cleanup_all()
 
 
 app = FastAPI(
@@ -38,6 +41,9 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan
 )
+
+# Register webhook routes
+register_routes(app)
 
 
 @app.get("/")
