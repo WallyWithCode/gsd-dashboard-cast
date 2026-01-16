@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-01-15)
 
 **Core value:** Seamless webhook-triggered casting of authenticated web dashboards to Android TV, enabling Home Assistant automations to display contextual information on demand.
-**Current focus:** Phase 4 — Webhook API
+**Current focus:** Phase 5 — Production Readiness
 
 ## Current Position
 
-Phase: 4 of 5 (Webhook API)
-Plan: 3 of 3 in current phase
+Phase: 5 of 5 (Production Readiness)
+Plan: 2 of 2 in current phase
 Status: Complete
-Last activity: 2026-01-16 — Completed 04-03-PLAN.md
+Last activity: 2026-01-16 — Completed 05-02-PLAN.md
 
-Progress: ████████░░ 73%
+Progress: ██████████ 100%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 10
+- Total plans completed: 12
 - Average duration: 4.3 min
-- Total execution time: 0.80 hours
+- Total execution time: 0.95 hours
 
 **By Phase:**
 
@@ -31,10 +31,11 @@ Progress: ████████░░ 73%
 | 2. Cast Integration | 2 | 13 min | 6.5 min |
 | 3. Video Pipeline | 3 | 11 min | 3.7 min |
 | 4. Webhook API | 3 | 18 min | 6.0 min |
+| 5. Production Readiness | 2 | 6 min | 3.0 min |
 
 **Recent Trend:**
-- Last 5 plans: 3 min, 5 min, 2 min, 1 min, 15 min
-- Trend: Steady (10 plans)
+- Last 5 plans: 5 min, 2 min, 1 min, 15 min, 5 min
+- Trend: Steady (12 plans)
 
 ## Accumulated Context
 
@@ -77,6 +78,8 @@ Recent decisions affecting current work:
 | 4 | Health check degraded status | Returns "degraded" when Cast device unavailable instead of "unhealthy" since service still operational |
 | 4 | uvicorn host 0.0.0.0 | Binding to all interfaces for Docker compatibility instead of localhost-only |
 | 4 | TestClient for integration tests | Using FastAPI TestClient with mocked StreamManager and Cast discovery for isolated testing without physical devices |
+| 5 | CAST_DEVICE_IP static IP override | Check environment variable before mDNS discovery with graceful fallback to address WSL2 mDNS limitation |
+| 5 | pychromecast.get_chromecasts(hosts=[ip]) | Use built-in host connection method for static IP to ensure full device metadata population |
 
 ### Pending Todos
 
@@ -84,16 +87,15 @@ None yet.
 
 ### Blockers/Concerns
 
-**WSL2 mDNS Limitation** (Phase 4 testing):
-- Cast device discovery via mDNS fails in WSL2/Docker environment
+**WSL2 mDNS Limitation** (Resolved in Phase 5):
+- ~~Cast device discovery via mDNS fails in WSL2/Docker environment~~
 - Multicast packets don't forward through WSL2's virtualized NAT network
 - User's Cast device (10.10.0.31) discoverable from Windows Chrome but not WSL2/Docker
-- **Impact**: Cannot test end-to-end casting in WSL2 development environment
-- **Mitigation for Phase 5**: Add `CAST_DEVICE_IP` environment variable for static IP configuration
-- **Not a blocker**: Code is correct, limitation is environmental (works on native Linux/macOS/Windows)
+- **Resolution**: Added `CAST_DEVICE_IP` environment variable for static IP configuration with graceful fallback to mDNS
+- **Status**: Workaround available, WSL2 users can now set CAST_DEVICE_IP=10.10.0.31 in docker-compose.yml
 
 ## Session Continuity
 
-Last session: 2026-01-16T10:15:00Z
-Stopped at: Phase 4 complete with manual verification and end-to-end testing documented. WSL2 mDNS limitation identified. Ready for Phase 5 (Production Readiness).
+Last session: 2026-01-16T10:59:16Z
+Stopped at: Completed 05-02-PLAN.md (Static IP Configuration). WSL2 mDNS workaround implemented. Ready for 05-03 (Documentation).
 Resume file: None

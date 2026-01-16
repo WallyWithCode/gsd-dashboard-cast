@@ -98,10 +98,11 @@ Plans:
   2. Documentation covers manual testing with curl/Postman
   3. Docker deployment requires minimal setup
 **Research**: Unlikely (Docker packaging established patterns)
-**Plans**: TBD
+**Plans**: In progress
 
 Plans:
-- [ ] TBD during planning
+- [x] 05-01: HTTPS URL validation and error handling
+- [x] 05-02: Static IP configuration for Cast device discovery
 
 ## Progress
 
@@ -114,4 +115,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | 2. Cast Integration | 2/2 | Complete | 2026-01-15 |
 | 3. Video Pipeline | 3/3 | Complete | 2026-01-15 |
 | 4. Webhook API | 3/3 | Complete | 2026-01-16 |
-| 5. Production Readiness | 0/TBD | Not started | - |
+| 5. Production Readiness | 2/2 | Complete | 2026-01-16 |
