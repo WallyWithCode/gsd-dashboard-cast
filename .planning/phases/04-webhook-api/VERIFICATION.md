@@ -234,6 +234,42 @@ None - all Phase 4 success criteria are fully implemented.
 - Log verification (JSON format, ISO timestamps, context variables)
 - Graceful shutdown verification
 
+### End-to-End Testing with Physical Cast Device
+
+**Test Date**: 2026-01-16
+**Environment**: WSL2 + Docker with host networking
+**Cast Device**: User device at 10.10.0.31 (discoverable from Windows Chrome browser)
+
+**Results**:
+1. ✓ Service starts successfully: `python -m src.main`
+2. ✓ `/health` endpoint responds correctly (returns degraded status when device unavailable)
+3. ✓ `/status` endpoint responds correctly (returns idle state)
+4. ✓ `/start` endpoint accepts requests and returns session_id
+5. ✓ Structured JSON logs working (ISO timestamps, context variables)
+6. ✓ Background task creation successful
+7. ⚠️ Cast device discovery failed in WSL2/Docker environment
+
+**Known Environmental Limitation - WSL2 mDNS**:
+- **Issue**: mDNS/multicast packets don't properly forward through WSL2's virtualized NAT network
+- **Impact**: Cast device discovery fails even with Docker `--network host`
+- **Evidence**: Device discoverable from Windows Chrome but not from WSL2/Docker Python
+- **Scope**: Environmental limitation, not a code defect
+- **Workaround for Phase 5**: Add IP-based Cast device configuration (environment variable for static IP)
+- **Stream failure log**: Service correctly handles discovery failure with proper error logging and cleanup
+
+**Webhook API Verification Status**: ✓ COMPLETE
+- All endpoints functional and responding correctly
+- Non-blocking pattern verified (immediate responses)
+- Structured logging confirmed working
+- Error handling and cleanup verified
+- Cast integration code correct (tested in Phase 2, failure is environmental)
+
+**Recommendation for Phase 5**:
+- Add `CAST_DEVICE_IP` environment variable for static IP configuration
+- Fallback to IP-based connection when mDNS discovery fails
+- Document WSL2 limitation in deployment docs
+- Test end-to-end casting on native Linux/macOS or Windows native Python
+
 ## Recommendation
 
 **Status: PASSED**

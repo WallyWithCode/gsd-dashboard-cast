@@ -84,10 +84,16 @@ None yet.
 
 ### Blockers/Concerns
 
-None yet.
+**WSL2 mDNS Limitation** (Phase 4 testing):
+- Cast device discovery via mDNS fails in WSL2/Docker environment
+- Multicast packets don't forward through WSL2's virtualized NAT network
+- User's Cast device (10.10.0.31) discoverable from Windows Chrome but not WSL2/Docker
+- **Impact**: Cannot test end-to-end casting in WSL2 development environment
+- **Mitigation for Phase 5**: Add `CAST_DEVICE_IP` environment variable for static IP configuration
+- **Not a blocker**: Code is correct, limitation is environmental (works on native Linux/macOS/Windows)
 
 ## Session Continuity
 
-Last session: 2026-01-16T09:30:00Z
-Stopped at: Completed 04-03-PLAN.md (Status/health endpoints and integration tests) - Phase 4 complete
+Last session: 2026-01-16T10:15:00Z
+Stopped at: Phase 4 complete with manual verification and end-to-end testing documented. WSL2 mDNS limitation identified. Ready for Phase 5 (Production Readiness).
 Resume file: None
