@@ -11,7 +11,7 @@ Requirements for v1.1 Cast Media Playback milestone. Each maps to roadmap phases
 
 - [x] **STRM-01**: HTTP endpoints serve video streams to Cast device via FastAPI
 - [x] **STRM-02**: Service supports dual-mode streaming: HLS (buffered) and fMP4 (low-latency)
-- [ ] **STRM-03**: Per-request mode selection via webhook `mode` parameter
+- [x] **STRM-03**: Per-request mode selection via webhook `mode` parameter
 - [x] **STRM-04**: HLS playlists served with `application/vnd.apple.mpegurl` content type
 - [x] **STRM-05**: Video segments served with proper MIME types (video/MP2T, video/mp4)
 - [x] **STRM-06**: CORS headers configured for Cast device access
@@ -29,10 +29,10 @@ Requirements for v1.1 Cast Media Playback milestone. Each maps to roadmap phases
 
 ### FFmpeg Pipeline
 
-- [ ] **ENC-01**: HLS output mode generates MPEG-TS segments with playlist
-- [ ] **ENC-02**: fMP4 output mode generates fragmented MP4 stream
-- [ ] **ENC-03**: H.264 High Profile Level 4.1 for universal Cast compatibility
-- [ ] **ENC-04**: AAC audio encoding for Cast compatibility
+- [x] **ENC-01**: HLS output mode generates MPEG-TS segments with playlist
+- [x] **ENC-02**: fMP4 output mode generates fragmented MP4 stream
+- [x] **ENC-03**: H.264 High Profile Level 4.1 for universal Cast compatibility
+- [x] **ENC-04**: AAC audio encoding for Cast compatibility
 
 ## v2 Requirements
 
@@ -72,7 +72,7 @@ Which phases cover which requirements. Updated by create-roadmap.
 |-------------|-------|--------|
 | STRM-01 | Phase 6 | Complete |
 | STRM-02 | Phase 6 | Complete |
-| STRM-03 | Phase 7 | Pending |
+| STRM-03 | Phase 7 | Complete |
 | STRM-04 | Phase 6 | Complete |
 | STRM-05 | Phase 6 | Complete |
 | STRM-06 | Phase 6 | Complete |
@@ -81,10 +81,10 @@ Which phases cover which requirements. Updated by create-roadmap.
 | CAST-03 | Phase 8 | Pending |
 | NET-01 | Phase 6 | Complete |
 | NET-02 | Phase 6 | Complete |
-| ENC-01 | Phase 7 | Pending |
-| ENC-02 | Phase 7 | Pending |
-| ENC-03 | Phase 7 | Pending |
-| ENC-04 | Phase 7 | Pending |
+| ENC-01 | Phase 7 | Complete |
+| ENC-02 | Phase 7 | Complete |
+| ENC-03 | Phase 7 | Complete |
+| ENC-04 | Phase 7 | Complete |
 
 **Coverage:**
 - v1.1 requirements: 15 total
@@ -93,4 +93,4 @@ Which phases cover which requirements. Updated by create-roadmap.
 
 ---
 *Requirements defined: 2026-01-17*
-*Last updated: 2026-01-17 after Phase 6 completion*
+*Last updated: 2026-01-17 after Phase 7 completion*
