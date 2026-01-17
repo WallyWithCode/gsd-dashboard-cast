@@ -118,38 +118,41 @@ class CastSessionManager:
         # Don't suppress exceptions
         return False
 
-    def start_cast(self, media_url: str):
+    def start_cast(self, media_url: str, mode: str = 'hls'):
         """Start casting media to device.
 
-        Initiates media playback on the Cast device. Currently a placeholder
-        that verifies the session is active and logs the request. Full video
-        streaming implementation will be added in Phase 3.
+        Initiates media playback on the Cast device using media_controller.play_media().
 
         Args:
-            media_url: URL of media to cast
+            media_url: URL of media to cast (HLS playlist or fMP4 stream)
+            mode: Streaming mode ('hls' or 'fmp4') - determines content_type and stream_type
 
         Raises:
             RuntimeError: If session not initialized (must use context manager)
-
-        Note:
-            Phase 3 implementation will:
-            - Load media controller
-            - Queue media URL
-            - Start playback
-            - Monitor playback status
         """
         if not self.is_active:
             logger.error("Cannot start cast - session not active")
             raise RuntimeError("Session not initialized. Use 'async with' context manager.")
 
-        logger.info(f"Cast request received for: {media_url}")
-        logger.debug("Actual streaming implementation will be added in Phase 3")
+        # Determine content_type and stream_type based on mode
+        if mode == 'fmp4':
+            content_type = 'video/mp4'
+            stream_type = 'LIVE'
+        else:  # hls (default)
+            content_type = 'application/vnd.apple.mpegurl'
+            stream_type = 'BUFFERED'
 
-        # Phase 3 will implement:
-        # - Load media controller
-        # - Queue media URL
-        # - Start playback
-        # - Monitor playback status
+        logger.info(f"Starting cast: url={media_url}, mode={mode}, content_type={content_type}, stream_type={stream_type}")
+
+        # Play media on Cast device
+        self.device.media_controller.play_media(
+            media_url,
+            content_type,
+            stream_type=stream_type
+        )
+        self.device.media_controller.block_until_active(timeout=10)
+
+        logger.info("Cast playback started successfully")
 
     async def stop_cast(self):
         """Stop active media playback and disconnect cast session.

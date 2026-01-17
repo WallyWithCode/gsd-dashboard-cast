@@ -150,9 +150,9 @@ class StreamManager:
                         async with CastSessionManager(cast_device) as cast_session:
                             logger.info(f"Cast session active: {device_name}")
 
-                            # Note: In Phase 4, stream_url will be loaded to Cast device
-                            # For now, we store URL for future use
-                            logger.info(f"Stream URL ready: {stream_url}")
+                            # Start playback on Cast device
+                            logger.info(f"Starting playback: {stream_url}")
+                            cast_session.start_cast(stream_url, mode=self.mode)
 
                             # If duration specified, wait for timeout
                             if self.duration:
