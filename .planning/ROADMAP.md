@@ -43,7 +43,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Milestone Goal:** Complete the Cast playback pipeline with dual-mode streaming for both dashboard reliability and camera feed low-latency.
 
 - [x] **Phase 6: HTTP Streaming Server** - Serve video streams to Cast device
-- [ ] **Phase 7: FFmpeg Dual-Mode Output** - Configure encoder for HLS and fMP4 modes
+- [x] **Phase 7: FFmpeg Dual-Mode Output** - Configure encoder for HLS and fMP4 modes
 - [ ] **Phase 8: Cast Media Playback** - Wire media_controller to display stream on TV
 
 ## Phase Details
@@ -94,5 +94,5 @@ Phases execute in numeric order: 6 → 7 → 8
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 6. HTTP Streaming Server | v1.1 | 2/2 | Complete | 2026-01-17 |
-| 7. FFmpeg Dual-Mode Output | v1.1 | 1/2 | In progress | - |
+| 7. FFmpeg Dual-Mode Output | v1.1 | 2/2 | Complete | 2026-01-17 |
 | 8. Cast Media Playback | v1.1 | 0/TBD | Not started | - |
