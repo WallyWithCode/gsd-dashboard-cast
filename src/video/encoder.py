@@ -88,6 +88,14 @@ class FFmpegEncoder:
             '-framerate', str(framerate),
             '-i', self.display,
 
+            # Silent audio source (required for Cast playback)
+            '-f', 'lavfi',
+            '-i', 'anullsrc=r=44100:cl=stereo',
+
+            # Map video and audio inputs
+            '-map', '0:v',  # Video from x11grab
+            '-map', '1:a',  # Audio from anullsrc
+
             # Video codec and encoding settings
             '-c:v', 'libx264',
             '-preset', preset,
@@ -98,6 +106,13 @@ class FFmpegEncoder:
             # H.264 profile/level for Cast compatibility
             '-profile:v', 'high',
             '-level:v', '4.1',
+
+            # Audio codec settings (AAC for Cast compatibility)
+            '-c:a', 'aac',
+            '-b:a', '128k',
+            '-ar', '44100',
+            '-ac', '2',
+            '-shortest',  # End when shortest input ends (video)
         ]
 
         # Latency-specific tuning
