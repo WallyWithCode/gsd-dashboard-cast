@@ -32,13 +32,15 @@ class BrowserManager:
         logger.info("Launching browser...")
         self.playwright = await async_playwright().start()
 
-        # Launch headless Chrome with minimal resource usage
+        # Launch Chrome to render on Xvfb display (NOT headless - need X11 for FFmpeg capture)
+        # DISPLAY env var must be set to Xvfb display before calling this
         self.browser = await self.playwright.chromium.launch(
-            headless=True,
+            headless=False,  # Must be False for x11grab capture to work
             args=[
                 '--no-sandbox',
                 '--disable-dev-shm-usage',  # Prevent shared memory issues in Docker
                 '--disable-gpu',
+                '--start-fullscreen',  # Fill the Xvfb display
             ]
         )
 
