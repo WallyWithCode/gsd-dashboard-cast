@@ -1,7 +1,9 @@
 """FFmpeg encoder for video streaming to Cast devices.
 
 Manages FFmpeg encoding process that captures video from Xvfb virtual display
-and encodes to H.264 with configurable quality settings using HLS output format.
+and encodes to H.264 with configurable quality settings. Supports dual output modes:
+- HLS: Buffered streaming with .m3u8 playlist and .ts segments
+- fMP4: Low-latency fragmented MP4 streaming
 """
 
 import asyncio
@@ -9,6 +11,7 @@ import logging
 import os
 import shutil
 from pathlib import Path
+from typing import Literal
 from uuid import uuid4
 
 from .network import get_host_ip
@@ -22,12 +25,15 @@ class FFmpegEncoder:
     """Manages FFmpeg encoding process for video streaming.
 
     Captures video from Xvfb virtual display and encodes to H.264 with
-    configurable quality settings. Uses async context manager for proper
-    process lifecycle management.
+    configurable quality settings. Supports two output modes:
+    - HLS: Buffered streaming with playlist (.m3u8) and segments (.ts)
+    - fMP4: Low-latency fragmented MP4 for real-time content
+
+    Uses async context manager for proper process lifecycle management.
 
     Usage:
         config = get_quality_config('1080p')
-        async with FFmpegEncoder(config, display=':99') as stream_url:
+        async with FFmpegEncoder(config, display=':99', mode='hls') as stream_url:
             # Encoding runs until context exit
             await asyncio.sleep(30)  # Stream for 30 seconds
     """
@@ -37,7 +43,8 @@ class FFmpegEncoder:
         quality: QualityConfig,
         display: str = ':99',
         output_dir: str = '/tmp/streams',
-        port: int = 8080
+        port: int = 8080,
+        mode: Literal['hls', 'fmp4'] = 'hls'
     ):
         """Initialize FFmpeg encoder.
 
@@ -46,11 +53,13 @@ class FFmpegEncoder:
             display: X11 display number to capture from
             output_dir: Directory for output stream files
             port: Streaming server port for URL construction
+            mode: Output format - 'hls' for buffered streaming, 'fmp4' for low-latency
         """
         self.quality = quality
         self.display = display
         self.output_dir = output_dir
         self.port = port
+        self.mode = mode
         self.process = None
         self.output_path = None
 
@@ -58,7 +67,7 @@ class FFmpegEncoder:
         os.makedirs(output_dir, exist_ok=True)
 
     def build_ffmpeg_args(self, output_file: str) -> list[str]:
-        """Construct FFmpeg argument list based on quality config.
+        """Construct FFmpeg argument list based on quality config and output mode.
 
         Args:
             output_file: Full path to output file
@@ -71,9 +80,9 @@ class FFmpegEncoder:
         framerate = self.quality.framerate
         preset = self.quality.preset
 
-        # Base arguments for x11grab input
+        # Base arguments for x11grab input (video source)
         args = [
-            # Input configuration
+            # Video input configuration
             '-f', 'x11grab',
             '-video_size', f'{width}x{height}',
             '-framerate', str(framerate),
@@ -85,6 +94,10 @@ class FFmpegEncoder:
             '-b:v', f'{bitrate}k',
             '-maxrate', f'{bitrate}k',
             '-bufsize', f'{bitrate * 2}k',
+
+            # H.264 profile/level for Cast compatibility
+            '-profile:v', 'high',
+            '-level:v', '4.1',
         ]
 
         # Latency-specific tuning
@@ -105,14 +118,23 @@ class FFmpegEncoder:
                 '-refs', '3',  # 3 reference frames
             ])
 
-        # HLS output format for streaming
-        args.extend([
-            '-f', 'hls',
-            '-hls_time', '2',  # 2-second segments
-            '-hls_list_size', '3',  # Keep 3 segments in playlist
-            '-hls_flags', 'delete_segments',  # Auto-cleanup old segments
-            output_file,
-        ])
+        # Output format based on mode
+        if self.mode == 'hls':
+            # HLS output: buffered streaming with playlist and segments
+            args.extend([
+                '-f', 'hls',
+                '-hls_time', '2',  # 2-second segments
+                '-hls_list_size', '3',  # Keep 3 segments in playlist
+                '-hls_flags', 'delete_segments',  # Auto-cleanup old segments
+                output_file,
+            ])
+        else:
+            # fMP4 output: low-latency fragmented MP4
+            args.extend([
+                '-f', 'mp4',
+                '-movflags', 'frag_keyframe+empty_moov+default_base_moof',
+                output_file,
+            ])
 
         return args
 
@@ -120,11 +142,11 @@ class FFmpegEncoder:
         """Start FFmpeg encoding process.
 
         Returns:
-            HTTP URL for the HLS playlist (m3u8 file)
+            HTTP URL for the stream file (m3u8 for HLS, mp4 for fMP4)
 
         Raises:
             FileNotFoundError: If ffmpeg is not in PATH
-            RuntimeError: If HLS playlist not created after startup
+            RuntimeError: If output file not created after startup
         """
         # Check for ffmpeg availability
         if not shutil.which('ffmpeg'):
@@ -132,9 +154,12 @@ class FFmpegEncoder:
                 "ffmpeg not found in PATH. Install FFmpeg to use video encoding."
             )
 
-        # Generate unique output filename
+        # Generate unique output filename based on mode
         stream_id = uuid4().hex
-        output_filename = f"stream_{stream_id}.m3u8"
+        if self.mode == 'hls':
+            output_filename = f"stream_{stream_id}.m3u8"
+        else:
+            output_filename = f"stream_{stream_id}.mp4"
         self.output_path = os.path.join(self.output_dir, output_filename)
 
         # Build FFmpeg arguments
@@ -143,7 +168,7 @@ class FFmpegEncoder:
         logger.info(
             f"Starting FFmpeg encoder: {self.quality.resolution[0]}x{self.quality.resolution[1]} "
             f"@ {self.quality.bitrate}kbps, preset={self.quality.preset}, "
-            f"latency_mode={self.quality.latency_mode}"
+            f"latency_mode={self.quality.latency_mode}, mode={self.mode}"
         )
 
         # Start FFmpeg subprocess
@@ -156,9 +181,11 @@ class FFmpegEncoder:
 
         logger.info(f"FFmpeg process started (PID: {self.process.pid})")
 
-        # Wait for HLS playlist to be created (needs at least one segment)
-        # HLS segment time is 2s, plus encoding overhead, so wait 5s total
-        max_wait = 5
+        # Wait for output file to be created
+        # HLS needs segment time (2s) + overhead, fMP4 needs less time
+        max_wait = 5 if self.mode == 'hls' else 3
+        file_type = "HLS playlist" if self.mode == 'hls' else "fMP4 stream"
+
         for i in range(max_wait):
             await asyncio.sleep(1)
             if os.path.exists(self.output_path):
@@ -171,7 +198,7 @@ class FFmpegEncoder:
                     f"FFmpeg exited with code {self.process.returncode}. "
                     f"Error: {error_msg}"
                 )
-            logger.debug(f"Waiting for HLS playlist... ({i+1}/{max_wait}s)")
+            logger.debug(f"Waiting for {file_type}... ({i+1}/{max_wait}s)")
 
         # Verify output file exists
         if not os.path.exists(self.output_path):
@@ -186,11 +213,11 @@ class FFmpegEncoder:
                 error_msg = "No error output available (process still running)"
 
             raise RuntimeError(
-                f"FFmpeg failed to create HLS playlist at {self.output_path} after {max_wait}s. "
+                f"FFmpeg failed to create {file_type} at {self.output_path} after {max_wait}s. "
                 f"Stderr: {error_msg}"
             )
 
-        logger.info(f"HLS playlist created: {self.output_path}")
+        logger.info(f"{file_type} created: {self.output_path}")
 
         # Return HTTP URL accessible from Cast device on local network
         host_ip = get_host_ip()
@@ -226,16 +253,17 @@ class FFmpegEncoder:
         # Clean up output files
         if self.output_path and os.path.exists(self.output_path):
             try:
-                # Remove playlist file
+                # Remove main output file (m3u8 or mp4)
                 os.remove(self.output_path)
 
-                # Remove segment files (*.ts files with same base name)
-                output_dir = os.path.dirname(self.output_path)
-                base_name = os.path.splitext(os.path.basename(self.output_path))[0]
-                for file in os.listdir(output_dir):
-                    if file.startswith(base_name) and file.endswith('.ts'):
-                        segment_path = os.path.join(output_dir, file)
-                        os.remove(segment_path)
+                # For HLS mode, also remove segment files (*.ts files with same base name)
+                if self.mode == 'hls':
+                    output_dir = os.path.dirname(self.output_path)
+                    base_name = os.path.splitext(os.path.basename(self.output_path))[0]
+                    for file in os.listdir(output_dir):
+                        if file.startswith(base_name) and file.endswith('.ts'):
+                            segment_path = os.path.join(output_dir, file)
+                            os.remove(segment_path)
 
                 logger.info(f"Cleaned up output files: {self.output_path}")
             except OSError as e:
