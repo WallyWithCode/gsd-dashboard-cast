@@ -98,6 +98,7 @@ class FFmpegEncoder:
 
             # Video codec and encoding settings
             '-c:v', 'libx264',
+            '-pix_fmt', 'yuv420p',  # Convert BGR0 to YUV 4:2:0 (required for H.264 High profile)
             '-preset', preset,
             '-b:v', f'{bitrate}k',
             '-maxrate', f'{bitrate}k',
