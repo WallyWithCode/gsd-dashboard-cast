@@ -70,26 +70,26 @@ Which phases cover which requirements. Updated by create-roadmap.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| STRM-01 | TBD | Pending |
-| STRM-02 | TBD | Pending |
-| STRM-03 | TBD | Pending |
-| STRM-04 | TBD | Pending |
-| STRM-05 | TBD | Pending |
-| STRM-06 | TBD | Pending |
-| CAST-01 | TBD | Pending |
-| CAST-02 | TBD | Pending |
-| CAST-03 | TBD | Pending |
-| NET-01 | TBD | Pending |
-| NET-02 | TBD | Pending |
-| ENC-01 | TBD | Pending |
-| ENC-02 | TBD | Pending |
-| ENC-03 | TBD | Pending |
-| ENC-04 | TBD | Pending |
+| STRM-01 | Phase 6 | Pending |
+| STRM-02 | Phase 6 | Pending |
+| STRM-03 | Phase 7 | Pending |
+| STRM-04 | Phase 6 | Pending |
+| STRM-05 | Phase 6 | Pending |
+| STRM-06 | Phase 6 | Pending |
+| CAST-01 | Phase 8 | Pending |
+| CAST-02 | Phase 8 | Pending |
+| CAST-03 | Phase 8 | Pending |
+| NET-01 | Phase 6 | Pending |
+| NET-02 | Phase 6 | Pending |
+| ENC-01 | Phase 7 | Pending |
+| ENC-02 | Phase 7 | Pending |
+| ENC-03 | Phase 7 | Pending |
+| ENC-04 | Phase 7 | Pending |
 
 **Coverage:**
 - v1.1 requirements: 15 total
-- Mapped to phases: 0 (pending create-roadmap)
-- Unmapped: 15
+- Mapped to phases: 15 ✓
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-01-17*
