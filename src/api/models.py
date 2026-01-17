@@ -4,7 +4,7 @@ Pydantic request/response models for webhook API endpoints.
 All models use Pydantic v2 for validation and serialization.
 """
 from pydantic import BaseModel, HttpUrl, Field
-from typing import Optional
+from typing import Literal, Optional
 
 
 class StartRequest(BaseModel):
@@ -12,6 +12,7 @@ class StartRequest(BaseModel):
     url: HttpUrl
     quality: str = "1080p"  # Default from Docker config
     duration: Optional[int] = None  # Seconds, None = indefinite
+    mode: Literal['hls', 'fmp4'] = 'hls'  # Streaming mode: HLS (buffered) or fMP4 (low-latency)
 
 
 class StartResponse(BaseModel):

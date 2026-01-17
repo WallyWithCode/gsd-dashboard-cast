@@ -28,7 +28,7 @@ def register_routes(app):
         Returns:
             StartResponse with status and session_id
         """
-        logger.info("webhook_start", url=str(request.url), quality=request.quality, duration=request.duration)
+        logger.info("webhook_start", url=str(request.url), quality=request.quality, duration=request.duration, mode=request.mode)
 
         # Auto-stop previous stream (seamless transition)
         if app.state.stream_tracker.has_active_stream():
@@ -40,7 +40,8 @@ def register_routes(app):
             session_id,
             str(request.url),
             request.quality,
-            request.duration
+            request.duration,
+            request.mode
         )
 
         return StartResponse(status="success", session_id=session_id)
