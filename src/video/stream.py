@@ -18,7 +18,7 @@ from .encoder import FFmpegEncoder
 from .quality import get_quality_config
 from ..browser.manager import BrowserManager
 from ..browser.auth import inject_auth
-from ..cast.discovery import get_cast_device
+from ..cast.discovery import get_cast_device, get_device_name
 from ..cast.session import CastSessionManager
 
 logger = logging.getLogger(__name__)
@@ -51,7 +51,8 @@ class StreamManager:
         cast_device_name: str,
         quality_preset: str = "720p",
         duration: Optional[int] = None,
-        auth_config: Optional[dict] = None
+        auth_config: Optional[dict] = None,
+        mode: str = 'hls'
     ):
         """Initialize streaming manager.
 
@@ -61,6 +62,7 @@ class StreamManager:
             quality_preset: Quality preset name ('1080p', '720p', 'low-latency')
             duration: Optional duration in seconds (None = stream indefinitely)
             auth_config: Optional authentication dict with cookies/localStorage
+            mode: Streaming mode ('hls' or 'fmp4')
 
         Raises:
             ValueError: If quality_preset is not recognized
@@ -70,13 +72,14 @@ class StreamManager:
         self.quality_preset = quality_preset
         self.duration = duration
         self.auth_config = auth_config
+        self.mode = mode
 
         # Validate quality preset exists
         get_quality_config(quality_preset)  # Raises ValueError if invalid
 
         logger.info(
             f"StreamManager initialized: url={url}, device={cast_device_name}, "
-            f"quality={quality_preset}, duration={duration}"
+            f"quality={quality_preset}, duration={duration}, mode={mode}"
         )
 
     async def start_stream(self) -> dict:
@@ -113,7 +116,8 @@ class StreamManager:
             if not cast_device:
                 raise ValueError(f"Cast device not found: {self.cast_device_name}")
 
-            logger.info(f"Found Cast device: {cast_device.device.friendly_name}")
+            device_name = get_device_name(cast_device)
+            logger.info(f"Found Cast device: {device_name}")
 
             # Start Xvfb virtual display
             logger.info("Starting Xvfb virtual display...")
@@ -138,15 +142,13 @@ class StreamManager:
 
                     # Start FFmpeg encoding
                     logger.info("Starting FFmpeg encoder...")
-                    async with FFmpegEncoder(quality, display=display) as stream_url:
+                    async with FFmpegEncoder(quality, display=display, mode=self.mode) as stream_url:
                         logger.info(f"FFmpeg encoding started: {stream_url}")
 
                         # Start Cast session
                         logger.info("Starting Cast session...")
                         async with CastSessionManager(cast_device) as cast_session:
-                            logger.info(
-                                f"Cast session active: {cast_device.device.friendly_name}"
-                            )
+                            logger.info(f"Cast session active: {device_name}")
 
                             # Note: In Phase 4, stream_url will be loaded to Cast device
                             # For now, we store URL for future use
@@ -173,7 +175,7 @@ class StreamManager:
             return {
                 "status": "completed",
                 "stream_url": stream_url,
-                "device": cast_device.device.friendly_name,
+                "device": device_name,
                 "duration": self.duration
             }
 

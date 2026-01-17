@@ -22,7 +22,7 @@ class StreamTracker:
         """Check if there are any active streaming tasks."""
         return len(self.active_tasks) > 0
 
-    async def start_stream(self, session_id: str, url: str, quality: str, duration: Optional[int]) -> str:
+    async def start_stream(self, session_id: str, url: str, quality: str, duration: Optional[int], mode: str = 'hls') -> str:
         """Launch stream as background task.
 
         Args:
@@ -30,16 +30,17 @@ class StreamTracker:
             url: Target URL to cast
             quality: Quality preset ('1080p', '720p', 'low-latency')
             duration: Optional duration in seconds (None = indefinite)
+            mode: Streaming mode ('hls' or 'fmp4')
 
         Returns:
             session_id for tracking
         """
-        task = asyncio.create_task(self._run_stream(session_id, url, quality, duration))
+        task = asyncio.create_task(self._run_stream(session_id, url, quality, duration, mode))
         self.active_tasks[session_id] = task
         logger.info("stream_task_created", session_id=session_id, url=url, quality=quality)
         return session_id
 
-    async def _run_stream(self, session_id: str, url: str, quality: str, duration: Optional[int]):
+    async def _run_stream(self, session_id: str, url: str, quality: str, duration: Optional[int], mode: str = 'hls'):
         """Execute stream (runs until duration expires or cancelled).
 
         This is the background task that actually runs the stream. It binds
@@ -49,7 +50,8 @@ class StreamTracker:
             structlog.contextvars.bind_contextvars(
                 session_id=session_id,
                 url=url,
-                quality=quality
+                quality=quality,
+                mode=mode
             )
 
             # TODO: Get cast_device_name from environment variable (Plan 03)
@@ -60,7 +62,8 @@ class StreamTracker:
                 url=url,
                 cast_device_name=cast_device_name,
                 quality_preset=quality,
-                duration=duration
+                duration=duration,
+                mode=mode
             )
             await stream_manager.start_stream()
 
