@@ -93,6 +93,6 @@ Phases execute in numeric order: 6 → 7 → 8
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 6. HTTP Streaming Server | v1.1 | 0/TBD | Not started | - |
+| 6. HTTP Streaming Server | v1.1 | 1/2 | In progress | - |
 | 7. FFmpeg Dual-Mode Output | v1.1 | 0/TBD | Not started | - |
 | 8. Cast Media Playback | v1.1 | 0/TBD | Not started | - |

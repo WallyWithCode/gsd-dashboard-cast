@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-01-16)
 ## Current Position
 
 Phase: 6 of 8 (HTTP Streaming Server)
-Plan: Not started
-Status: Ready to plan
-Last activity: 2026-01-17 — v1.1 roadmap created
+Plan: 1 of 2 complete
+Status: In progress
+Last activity: 2026-01-17 — Completed 06-01-PLAN.md
 
-Progress: ░░░░░░░░░░ 0% (v1.1 — 0/3 phases)
+Progress: █░░░░░░░░░ 10% (v1.1 — 1/6 plans)
 
 ## Milestones
 
@@ -53,7 +53,7 @@ Tracked for future milestones:
 |------|----------|--------|
 | Stream metadata tracking | Low | Phase 4 |
 | Cast device name hardcoded | Low | Phase 4 |
-| HTTP server for HLS streams | Medium | Phase 3 |
+| HTTP server for HLS streams | Medium | Phase 3 (Addressing in Phase 6) |
 | Hardware acceleration | Low | Phase 3 (design decision) |
 
 ### Pending Todos
@@ -73,5 +73,5 @@ Tracked for future milestones:
 ## Session Continuity
 
 Last session: 2026-01-17
-Stopped at: v1.1 roadmap created (3 phases: 6-8)
+Stopped at: Completed 06-01-PLAN.md (HTTP streaming server infrastructure)
 Resume file: None
