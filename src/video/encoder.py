@@ -140,8 +140,8 @@ class FFmpegEncoder:
             args.extend([
                 '-f', 'hls',
                 '-hls_time', '2',  # 2-second segments
-                '-hls_list_size', '3',  # Keep 3 segments in playlist
-                '-hls_flags', 'delete_segments',  # Auto-cleanup old segments
+                '-hls_list_size', '10',  # Keep 10 segments in playlist (20s buffer)
+                '-hls_flags', 'delete_segments+append_list',  # Auto-cleanup old segments, append to playlist
                 output_file,
             ])
         else:
