@@ -67,6 +67,16 @@ Tracked for future milestones:
 
 ### Blockers/Concerns
 
+**Cast Shows Black Screen** (Active - MVP Blocker):
+- Cast device receives connection (shows Cast icon)
+- But displays black screen instead of video stream
+- Possible causes:
+  - Stream URL not accessible from Cast device network
+  - HLS segments not ready when Cast fetches playlist
+  - Content type or stream format issue
+  - FFmpeg output not Cast-compatible
+- **Status**: Needs debugging - stream connectivity and format validation
+
 **FFmpeg Process Leak** (Active):
 - Multiple FFmpeg processes (8+) spawned instead of 1 per stream
 - Processes not cleaned up on error/restart
