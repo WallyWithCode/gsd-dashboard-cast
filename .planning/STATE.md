@@ -9,12 +9,12 @@ See: .planning/PROJECT.md (updated 2026-01-16)
 
 ## Current Position
 
-Phase: 8 of 8 (Cast Media Playback)
+Phase: 7.1 of 8 (Cast Playback Debug) — INSERTED
 Plan: Not started
 Status: Ready to plan
-Last activity: 2026-01-17 — Phase 7 complete
+Last activity: 2026-01-17 — Debugging Cast black screen issue
 
-Progress: ██████░░░░ 67% (v1.1 — 2/3 phases)
+Progress: ██████░░░░ 50% (v1.1 — 2/4 phases, inserted debug phase)
 
 ## Milestones
 
@@ -67,15 +67,22 @@ Tracked for future milestones:
 
 ### Blockers/Concerns
 
-**Cast Shows Black Screen** (Active - MVP Blocker):
-- Cast device receives connection (shows Cast icon)
-- But displays black screen instead of video stream
-- Possible causes:
-  - Stream URL not accessible from Cast device network
-  - HLS segments not ready when Cast fetches playlist
-  - Content type or stream format issue
-  - FFmpeg output not Cast-compatible
-- **Status**: Needs debugging - stream connectivity and format validation
+**Cast Shows Black Screen / Loading Loop** (Active - MVP Blocker):
+- Cast device receives connection (shows Cast icon, then loading bar)
+- Then falls back to Cast logo - playback fails
+- Debugging done:
+  - ✓ HLS files created correctly (.m3u8 + .ts segments)
+  - ✓ Playlist format is valid
+  - ✓ HTTP server running on port 8080
+  - ✓ Increased HLS buffer to 10 segments (20s)
+  - ✗ Segments still returning 404 when Cast fetches
+- Remaining investigation needed:
+  - Verify Cast device can reach host IP (firewall?)
+  - Test stream in VLC from another device on network
+  - Check if encoding parameters are Cast-compatible
+  - Try absolute URLs in playlist instead of relative
+  - Check segment timing vs Cast fetch timing
+- **Status**: Needs dedicated debug phase
 
 **FFmpeg Process Leak** (Active):
 - Multiple FFmpeg processes (8+) spawned instead of 1 per stream
@@ -91,5 +98,14 @@ Tracked for future milestones:
 ## Session Continuity
 
 Last session: 2026-01-17
-Stopped at: Phase 7 complete, ready to plan Phase 8
+Stopped at: Phase 7.1 inserted - Cast playback not working (black screen/loading loop)
+Resume with: `/gsd:plan-phase 7.1` or `/gsd:debug` for systematic debugging
 Resume file: None
+
+### Debug Context for Next Session
+- Cast device connects successfully (shows Cast icon)
+- Loading bar appears briefly, then falls back to Cast logo
+- HLS files are being created correctly (.m3u8 + .ts segments)
+- Segments returning 404 when Cast tries to fetch them
+- Already tried: increased hls_list_size to 10, added append_list flag
+- Next steps: verify network accessibility, test stream in VLC, check segment timing
