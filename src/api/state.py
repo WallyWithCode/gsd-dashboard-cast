@@ -4,6 +4,7 @@ StreamTracker for managing active streaming tasks.
 Manages asyncio tasks for long-running streams with proper lifecycle and cleanup.
 """
 import asyncio
+import os
 import structlog
 from typing import Dict, Optional
 from src.video.stream import StreamManager
@@ -54,9 +55,8 @@ class StreamTracker:
                 mode=mode
             )
 
-            # TODO: Get cast_device_name from environment variable (Plan 03)
-            # For now, hardcoding as placeholder
-            cast_device_name = "Living Room TV"
+            # Get cast_device_name from env var, or None to use first available device
+            cast_device_name = os.getenv("CAST_DEVICE_NAME")
 
             stream_manager = StreamManager(
                 url=url,
