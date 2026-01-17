@@ -5,6 +5,7 @@ can use to access HTTP streams served by this application. The IP must be
 reachable from the local network, not localhost/127.0.0.1.
 """
 
+import os
 import socket
 
 import structlog
@@ -19,18 +20,28 @@ def get_host_ip() -> str:
     This IP is used to construct HTTP URLs that Cast devices can access
     to retrieve HLS playlists and video segments.
 
-    The function tries two methods:
-    1. Resolve the hostname to an IP address
-    2. If that fails or returns localhost, connect to an external IP
+    The function tries these methods in order:
+    1. STREAM_HOST_IP environment variable (for Docker/manual override)
+    2. Resolve the hostname to an IP address
+    3. If that fails or returns localhost, connect to an external IP
        (8.8.8.8) and get the local socket address
 
     Returns:
         IP address string (e.g., "192.168.1.100")
 
     Note:
-        Returns "127.0.0.1" only if both methods fail to find a LAN address.
+        Returns "127.0.0.1" only if all methods fail to find a LAN address.
         This would indicate a network configuration issue.
+
+    Environment Variables:
+        STREAM_HOST_IP: Manual override for host IP (required for Docker)
     """
+    # Method 0: Check for manual override (needed for Docker)
+    override_ip = os.getenv("STREAM_HOST_IP")
+    if override_ip:
+        logger.info("host_ip_from_env", ip=override_ip)
+        return override_ip
+
     ip = None
 
     # Method 1: Try hostname resolution

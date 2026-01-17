@@ -7,12 +7,15 @@ services:
     environment:
       - PYTHONUNBUFFERED=1  # Real-time log output to stdout
       - DISPLAY=:99  # Xvfb virtual display (managed by XvfbManager)
-      # Static Cast device IP (required for WSL2 - mDNS doesn't work)
+      # Static Cast device IP (required for Docker - mDNS doesn't work)
       - CAST_DEVICE_IP=10.10.0.31
+      # Host IP for stream URLs (REQUIRED for Docker - set to your machine's LAN IP)
+      - STREAM_HOST_IP=10.10.0.100  # <-- CHANGE THIS to your Ubuntu machine's IP
       # Optional: Discover Cast device by friendly name
       # - CAST_DEVICE_NAME=Living Room TV
     # network_mode: host  # Only works on native Linux - not Docker Desktop
     ports:
-      - "8000:8000"
+      - "8000:8000"   # Webhook API
+      - "8080:8080"   # HLS streaming server (must be accessible by Cast device)
     restart: unless-stopped
     # Note: Xvfb is started programmatically via XvfbManager, not as a separate service

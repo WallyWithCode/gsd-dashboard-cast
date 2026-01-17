@@ -135,8 +135,8 @@ async def get_cast_device(
                 # Tuple: (host, port, uuid, model_name, friendly_name)
                 host_tuple = (static_ip, None, None, None, None)
                 cc = pychromecast.get_chromecast_from_host(host_tuple)
-                # Wait for connection
-                cc.wait()
+                # Wait for connection with timeout (default wait() blocks forever)
+                cc.wait(timeout=10)
                 return cc
 
             device = await loop.run_in_executor(None, connect_to_host)
