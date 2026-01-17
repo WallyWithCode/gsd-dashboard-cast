@@ -58,12 +58,20 @@ Tracked for future milestones:
 
 ### Pending Todos
 
-2 todos pending. See `.planning/todos/pending/`
+4 todos pending. See `.planning/todos/pending/`
 
 - **Implement Cast media playback** — HTTP server + media_controller.play_media() (video)
 - **Direct RTSP to Cast streaming** — bypass browser capture for camera feeds (video)
+- **Hardware acceleration (QuickSync/VAAPI)** — reduce CPU usage for FFmpeg encoding (v2)
+- **FFmpeg process cleanup bug** — multiple FFmpeg processes spawned, not cleaned up on error (bug)
 
 ### Blockers/Concerns
+
+**FFmpeg Process Leak** (Active):
+- Multiple FFmpeg processes (8+) spawned instead of 1 per stream
+- Processes not cleaned up on error/restart
+- Causes severe CPU load
+- **Status**: Needs investigation - likely in FFmpegEncoder context manager cleanup
 
 **WSL2 mDNS Limitation** (Resolved):
 - mDNS discovery doesn't work in WSL2/Docker environment
