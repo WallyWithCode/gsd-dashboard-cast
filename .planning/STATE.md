@@ -9,12 +9,12 @@ See: .planning/PROJECT.md (updated 2026-01-16)
 
 ## Current Position
 
-Phase: 6 of 8 (HTTP Streaming Server)
-Plan: 2 of 2 complete
-Status: Phase complete
-Last activity: 2026-01-17 — Completed 06-02-PLAN.md
+Phase: 7 of 8 (FFmpeg Dual-Mode Output)
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-01-17 — Phase 6 complete
 
-Progress: ██░░░░░░░░ 20% (v1.1 — 2/6 plans)
+Progress: ██░░░░░░░░ 33% (v1.1 — 1/3 phases)
 
 ## Milestones
 
@@ -53,7 +53,7 @@ Tracked for future milestones:
 |------|----------|--------|
 | Stream metadata tracking | Low | Phase 4 |
 | Cast device name hardcoded | Low | Phase 4 |
-| HTTP server for HLS streams | Medium | Phase 3 (Addressing in Phase 6) |
+| HTTP server for HLS streams | Medium | Phase 3 (✓ Resolved in Phase 6) |
 | Hardware acceleration | Low | Phase 3 (design decision) |
 
 ### Pending Todos
@@ -73,5 +73,5 @@ Tracked for future milestones:
 ## Session Continuity
 
 Last session: 2026-01-17
-Stopped at: Completed 06-02-PLAN.md (Phase 6 complete - HTTP streaming server integration)
+Stopped at: Phase 6 complete, ready to plan Phase 7
 Resume file: None

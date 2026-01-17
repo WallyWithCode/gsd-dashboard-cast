@@ -9,12 +9,12 @@ Requirements for v1.1 Cast Media Playback milestone. Each maps to roadmap phases
 
 ### HTTP Streaming
 
-- [ ] **STRM-01**: HTTP endpoints serve video streams to Cast device via FastAPI
-- [ ] **STRM-02**: Service supports dual-mode streaming: HLS (buffered) and fMP4 (low-latency)
+- [x] **STRM-01**: HTTP endpoints serve video streams to Cast device via FastAPI
+- [x] **STRM-02**: Service supports dual-mode streaming: HLS (buffered) and fMP4 (low-latency)
 - [ ] **STRM-03**: Per-request mode selection via webhook `mode` parameter
-- [ ] **STRM-04**: HLS playlists served with `application/vnd.apple.mpegurl` content type
-- [ ] **STRM-05**: Video segments served with proper MIME types (video/MP2T, video/mp4)
-- [ ] **STRM-06**: CORS headers configured for Cast device access
+- [x] **STRM-04**: HLS playlists served with `application/vnd.apple.mpegurl` content type
+- [x] **STRM-05**: Video segments served with proper MIME types (video/MP2T, video/mp4)
+- [x] **STRM-06**: CORS headers configured for Cast device access
 
 ### Cast Playback
 
@@ -24,8 +24,8 @@ Requirements for v1.1 Cast Media Playback milestone. Each maps to roadmap phases
 
 ### Network Configuration
 
-- [ ] **NET-01**: Auto-detect host IP for Cast-accessible stream URL
-- [ ] **NET-02**: Stream URL accessible from Cast device's network
+- [x] **NET-01**: Auto-detect host IP for Cast-accessible stream URL
+- [x] **NET-02**: Stream URL accessible from Cast device's network
 
 ### FFmpeg Pipeline
 
@@ -70,17 +70,17 @@ Which phases cover which requirements. Updated by create-roadmap.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| STRM-01 | Phase 6 | Pending |
-| STRM-02 | Phase 6 | Pending |
+| STRM-01 | Phase 6 | Complete |
+| STRM-02 | Phase 6 | Complete |
 | STRM-03 | Phase 7 | Pending |
-| STRM-04 | Phase 6 | Pending |
-| STRM-05 | Phase 6 | Pending |
-| STRM-06 | Phase 6 | Pending |
+| STRM-04 | Phase 6 | Complete |
+| STRM-05 | Phase 6 | Complete |
+| STRM-06 | Phase 6 | Complete |
 | CAST-01 | Phase 8 | Pending |
 | CAST-02 | Phase 8 | Pending |
 | CAST-03 | Phase 8 | Pending |
-| NET-01 | Phase 6 | Pending |
-| NET-02 | Phase 6 | Pending |
+| NET-01 | Phase 6 | Complete |
+| NET-02 | Phase 6 | Complete |
 | ENC-01 | Phase 7 | Pending |
 | ENC-02 | Phase 7 | Pending |
 | ENC-03 | Phase 7 | Pending |
@@ -93,4 +93,4 @@ Which phases cover which requirements. Updated by create-roadmap.
 
 ---
 *Requirements defined: 2026-01-17*
-*Last updated: 2026-01-17 after initial definition*
+*Last updated: 2026-01-17 after Phase 6 completion*
