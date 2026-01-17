@@ -11,6 +11,7 @@ import shutil
 from pathlib import Path
 from uuid import uuid4
 
+from .network import get_host_ip
 from .quality import QualityConfig
 
 
@@ -35,7 +36,8 @@ class FFmpegEncoder:
         self,
         quality: QualityConfig,
         display: str = ':99',
-        output_dir: str = '/tmp/streams'
+        output_dir: str = '/tmp/streams',
+        port: int = 8080
     ):
         """Initialize FFmpeg encoder.
 
@@ -43,10 +45,12 @@ class FFmpegEncoder:
             quality: Quality configuration for encoding
             display: X11 display number to capture from
             output_dir: Directory for output stream files
+            port: Streaming server port for URL construction
         """
         self.quality = quality
         self.display = display
         self.output_dir = output_dir
+        self.port = port
         self.process = None
         self.output_path = None
 
@@ -152,31 +156,45 @@ class FFmpegEncoder:
 
         logger.info(f"FFmpeg process started (PID: {self.process.pid})")
 
-        # Wait for HLS playlist to be created
-        await asyncio.sleep(2)
+        # Wait for HLS playlist to be created (needs at least one segment)
+        # HLS segment time is 2s, plus encoding overhead, so wait 5s total
+        max_wait = 5
+        for i in range(max_wait):
+            await asyncio.sleep(1)
+            if os.path.exists(self.output_path):
+                break
+            # Check if process died
+            if self.process.returncode is not None:
+                stderr = await self.process.stderr.read()
+                error_msg = stderr.decode('utf-8', errors='replace')
+                raise RuntimeError(
+                    f"FFmpeg exited with code {self.process.returncode}. "
+                    f"Error: {error_msg}"
+                )
+            logger.debug(f"Waiting for HLS playlist... ({i+1}/{max_wait}s)")
 
         # Verify output file exists
         if not os.path.exists(self.output_path):
-            # Try to get error output
+            # FFmpeg still running but no output - check stderr
             try:
                 stderr = await asyncio.wait_for(
-                    self.process.stderr.read(1024),
+                    self.process.stderr.read(2048),
                     timeout=1.0
                 )
                 error_msg = stderr.decode('utf-8', errors='replace')
             except asyncio.TimeoutError:
-                error_msg = "No error output available"
+                error_msg = "No error output available (process still running)"
 
             raise RuntimeError(
-                f"FFmpeg failed to create HLS playlist at {self.output_path}. "
-                f"Error: {error_msg}"
+                f"FFmpeg failed to create HLS playlist at {self.output_path} after {max_wait}s. "
+                f"Stderr: {error_msg}"
             )
 
         logger.info(f"HLS playlist created: {self.output_path}")
 
-        # Return HTTP URL (will be served by HTTP server in Phase 4)
-        # For now, return the file path
-        return f"http://localhost:8080/{output_filename}"
+        # Return HTTP URL accessible from Cast device on local network
+        host_ip = get_host_ip()
+        return f"http://{host_ip}:{self.port}/{output_filename}"
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """Stop FFmpeg process and clean up output files.
