@@ -94,8 +94,8 @@ class XvfbManager:
             # Wait for Xvfb to initialize
             await asyncio.sleep(1)
 
-            # Verify Xvfb is still running
-            if self.process.poll() is not None:
+            # Verify Xvfb is still running (asyncio Process uses returncode, not poll())
+            if self.process.returncode is not None:
                 # Process already terminated, read stderr for error details
                 stderr = await self.process.stderr.read()
                 error_msg = stderr.decode('utf-8', errors='replace')

@@ -9,6 +9,7 @@ import asyncio
 import logging
 import pychromecast
 from .retry import retry_with_backoff
+from .discovery import get_device_name
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +59,7 @@ class CastSessionManager:
         Raises:
             Exception: If connection fails after all retry attempts
         """
-        logger.info(f"Starting Cast session for device: {self.device.device.friendly_name}")
+        logger.info(f"Starting Cast session for device: {get_device_name(self.device)}")
 
         try:
             loop = asyncio.get_event_loop()

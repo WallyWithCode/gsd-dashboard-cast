@@ -7,10 +7,12 @@ services:
     environment:
       - PYTHONUNBUFFERED=1  # Real-time log output to stdout
       - DISPLAY=:99  # Xvfb virtual display (managed by XvfbManager)
-      # Optional: Static Cast device IP (WSL2 workaround for mDNS limitation)
-      # - CAST_DEVICE_IP=10.10.0.31
+      # Static Cast device IP (required for WSL2 - mDNS doesn't work)
+      - CAST_DEVICE_IP=10.10.0.31
       # Optional: Discover Cast device by friendly name
       # - CAST_DEVICE_NAME=Living Room TV
-    network_mode: host  # Required for mDNS Cast device discovery
+    # network_mode: host  # Only works on native Linux - not Docker Desktop
+    ports:
+      - "8000:8000"
     restart: unless-stopped
     # Note: Xvfb is started programmatically via XvfbManager, not as a separate service

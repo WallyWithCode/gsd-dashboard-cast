@@ -55,13 +55,14 @@ Network Requirements:
     - No firewall blocking ports 5353 (mDNS) or 8009 (Cast)
 """
 
-from .discovery import discover_devices, get_cast_device
+from .discovery import discover_devices, get_cast_device, get_device_name
 from .session import CastSessionManager
 from .retry import retry_with_backoff
 
 __all__ = [
     'discover_devices',
     'get_cast_device',
+    'get_device_name',
     'CastSessionManager',
     'retry_with_backoff',
 ]
