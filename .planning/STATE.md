@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-01-18)
 ## Current Position
 
 Phase: 9 of 13 (HLS Buffering Fix)
-Plan: Not yet planned
-Status: Ready to plan
-Last activity: 2026-01-18 — v2.0 roadmap created
+Plan: 1 of 1 in phase
+Status: Phase complete
+Last activity: 2026-01-18 — Completed 09-01-PLAN.md (HLS Buffering Configuration Fix)
 
-Progress: [████████░░░░░░░░░░░░] 40% (20/? plans complete across all phases)
+Progress: [█████████░░░░░░░░░░░] 45% (21/? plans complete across all phases)
 
 ## Milestones
 
@@ -35,9 +35,9 @@ See: .planning/MILESTONES.md for full milestone history.
 - Combined execution time: ~2.5 hours
 
 **v2.0 Velocity:**
-- Total plans completed: 0
-- Average duration: TBD
-- Total execution time: TBD
+- Total plans completed: 1
+- Average duration: 15 min
+- Total execution time: ~15 min
 
 **By Phase:**
 
@@ -45,10 +45,10 @@ See: .planning/MILESTONES.md for full milestone history.
 |-------|-------|-------|----------|
 | v1.0 (1-4) | 12 | ~78 min | 6.5 min |
 | v1.1 (5-8) | 8 | ~43 min | 5.4 min |
-| v2.0 (9-13) | 0 | - | - |
+| v2.0 (9-13) | 1 | ~15 min | 15 min |
 
 **Recent Trend:**
-- v2.0 just started — no trend data yet
+- Phase 9 complete: 1 plan, 15 min total
 
 ## Accumulated Context
 
@@ -57,6 +57,10 @@ See: .planning/MILESTONES.md for full milestone history.
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting v2.0 work:
 
+- v2.0 Phase 9: HLS buffer window increased from 20s to 40s (hls_list_size 10→20) — Prevents Cast device underruns during streaming
+- v2.0 Phase 9: Added hls_delete_threshold=5 — Retains segments beyond playlist for buffering safety
+- v2.0 Phase 9: Added omit_endlist flag — Signals continuous streaming mode to Cast devices (not VOD)
+- v2.0 Phase 9: Startup cleanup in __init__ method — Removes stale HLS segments before new sessions
 - v1.1: aiohttp over FastAPI StaticFiles — Independent server on configurable port (enables 8000/8080 separation)
 - v1.1: fMP4 movflags: frag_keyframe+empty_moov+default_base_moof — Streaming-friendly fragmentation
 - v1.1: Default mode 'hls' — Backward compatibility with existing webhooks
@@ -64,19 +68,24 @@ Recent decisions affecting v2.0 work:
 
 ### Pending Todos
 
-4 todos pending. See `.planning/todos/pending/`
+3 todos pending. See `.planning/todos/pending/`
 
 - **Direct RTSP to Cast streaming** — bypass browser capture for camera feeds (video)
 - **Hardware acceleration (QuickSync/VAAPI)** — reduce CPU usage for FFmpeg encoding (v2.0 Phase 13)
 - **FFmpeg process cleanup bug** — multiple FFmpeg processes spawned, not cleaned up on error (v2.0 Phase 12)
-- **HLS stream buffering issue** — stream freezes after 6 seconds, needs HLS segment/timeout tuning (v2.0 Phase 9)
+
+### Resolved Todos
+
+- **HLS stream buffering issue** — ✅ RESOLVED in Phase 9 (HLS buffer window increased to 40s, segment retention added, continuous streaming signal implemented)
 
 ### Blockers/Concerns
 
 **v2.0 addresses these known issues:**
-- HLS 6-second freeze bug (Phase 9 target)
 - Orphaned FFmpeg processes (Phase 12 target)
 - CPU-bound software encoding (Phase 13 target)
+
+**Resolved in v2.0:**
+- ✅ HLS 6-second freeze bug (Phase 9 - buffer window and segment retention fixed)
 
 **Resolved in previous milestones:**
 - Cast device 404 errors (Phase 8 - IP address fixed)
@@ -84,19 +93,18 @@ Recent decisions affecting v2.0 work:
 
 ## Session Continuity
 
-Last session: 2026-01-18 (v2.0 roadmap creation)
-Stopped at: v2.0 roadmap and state initialization complete
-Resume with: `/gsd:plan-phase 9` to plan HLS Buffering Fix
+Last session: 2026-01-18 (Phase 9 execution complete)
+Stopped at: Completed 09-01-PLAN.md - HLS Buffering Configuration Fix
+Resume with: `/gsd:plan-phase 10` to plan fMP4 Latency Validation
 Resume file: None
 
 ### Context for Next Session
-- v2.0 roadmap created with 5 phases (9-13)
-- Phase 9 addresses HLS 6-second freeze (config-only fix)
-- Phase 10 validates fMP4 low-latency mode (existing feature)
-- Phase 11 adds device-initiated stop detection (foundation for cleanup)
-- Phase 12 implements robust process lifecycle management (fixes FFmpeg leak)
-- Phase 13 integrates Intel QuickSync hardware acceleration (80-90% CPU reduction)
-- Ready to begin planning Phase 9: HLS Buffering Fix
+- Phase 9 complete: HLS 6-second freeze resolved
+- HLS buffering configuration updated: 40s buffer, segment retention, continuous streaming signal
+- Startup cleanup implemented for stale HLS segments
+- User verified: Stream plays continuously without freezing
+- Ready to begin Phase 10: fMP4 Latency Validation (validates existing fMP4 low-latency mode)
+- Remaining v2.0 phases: 10 (fMP4), 11 (stop detection), 12 (process lifecycle), 13 (hardware acceleration)
 
 ---
-*State updated: 2026-01-18 after v2.0 roadmap creation*
+*State updated: 2026-01-18 after Phase 9 execution complete*
