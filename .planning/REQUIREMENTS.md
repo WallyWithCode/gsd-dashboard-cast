@@ -89,39 +89,47 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| HLS-01 | TBD | Pending |
-| HLS-02 | TBD | Pending |
-| HLS-03 | TBD | Pending |
-| HLS-04 | TBD | Pending |
-| HLS-05 | TBD | Pending |
-| FMP4-01 | TBD | Pending |
-| FMP4-02 | TBD | Pending |
-| FMP4-03 | TBD | Pending |
-| FMP4-04 | TBD | Pending |
-| PROC-01 | TBD | Pending |
-| PROC-02 | TBD | Pending |
-| PROC-03 | TBD | Pending |
-| PROC-04 | TBD | Pending |
-| PROC-05 | TBD | Pending |
-| PROC-06 | TBD | Pending |
-| PROC-07 | TBD | Pending |
-| HWAC-01 | TBD | Pending |
-| HWAC-02 | TBD | Pending |
-| HWAC-03 | TBD | Pending |
-| HWAC-04 | TBD | Pending |
-| HWAC-05 | TBD | Pending |
-| HWAC-06 | TBD | Pending |
-| HWAC-07 | TBD | Pending |
-| OPER-01 | TBD | Pending |
-| OPER-02 | TBD | Pending |
-| OPER-03 | TBD | Pending |
-| OPER-04 | TBD | Pending |
+| HLS-01 | Phase 9 | Pending |
+| HLS-02 | Phase 9 | Pending |
+| HLS-03 | Phase 9 | Pending |
+| HLS-04 | Phase 9 | Pending |
+| HLS-05 | Phase 9 | Pending |
+| FMP4-01 | Phase 10 | Pending |
+| FMP4-02 | Phase 10 | Pending |
+| FMP4-03 | Phase 10 | Pending |
+| FMP4-04 | Phase 10 | Pending |
+| PROC-01 | Phase 11 | Pending |
+| PROC-02 | Phase 11 | Pending |
+| PROC-03 | Phase 12 | Pending |
+| PROC-04 | Phase 12 | Pending |
+| PROC-05 | Phase 12 | Pending |
+| PROC-06 | Phase 12 | Pending |
+| PROC-07 | Phase 12 | Pending |
+| HWAC-01 | Phase 13 | Pending |
+| HWAC-02 | Phase 13 | Pending |
+| HWAC-03 | Phase 13 | Pending |
+| HWAC-04 | Phase 13 | Pending |
+| HWAC-05 | Phase 13 | Pending |
+| HWAC-06 | Phase 13 | Pending |
+| HWAC-07 | Phase 13 | Pending |
+| OPER-01 | Phase 13 | Pending |
+| OPER-02 | Phase 12 | Pending |
+| OPER-03 | Phase 12 | Pending |
+| OPER-04 | Phase 13 | Pending |
 
 **Coverage:**
 - v2.0 requirements: 29 total
-- Mapped to phases: 0 (awaiting roadmap)
-- Unmapped: 29 ⚠️
+- Mapped to phases: 29 (100% coverage ✓)
+- Unmapped: 0
+
+**Phase distribution:**
+- Phase 9: 5 requirements (HLS buffering)
+- Phase 10: 4 requirements (fMP4 validation)
+- Phase 11: 2 requirements (session monitoring)
+- Phase 12: 7 requirements (process lifecycle)
+- Phase 13: 9 requirements (hardware acceleration)
+- Total phases: 5
 
 ---
 *Requirements defined: 2026-01-18*
-*Last updated: 2026-01-18 after initial definition*
+*Last updated: 2026-01-18 after v2.0 roadmap creation*
