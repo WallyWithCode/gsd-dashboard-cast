@@ -44,7 +44,6 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 6: HTTP Streaming Server** - Serve video streams to Cast device
 - [x] **Phase 7: FFmpeg Dual-Mode Output** - Configure encoder for HLS and fMP4 modes
-- [ ] **Phase 7.1: Cast Playback Debug** - INSERTED: Get video displaying on TV (MVP blocker)
 - [ ] **Phase 8: Cast Media Playback** - Wire media_controller to display stream on TV
 
 ## Phase Details
@@ -83,27 +82,9 @@ Plans:
 - [x] 07-01-PLAN.md — FFmpeg dual-mode output (HLS and fMP4)
 - [x] 07-02-PLAN.md — API mode selection and parameter flow
 
-### Phase 7.1: Cast Playback Debug (INSERTED)
-**Goal**: Get video actually displaying on TV screen - MVP blocker
-**Depends on**: Phase 7
-**Requirements**: CAST-01 (partial - just get it working)
-**Priority**: URGENT - Cannot proceed without video on screen
-**Success Criteria** (what must be TRUE):
-  1. Video displays on Cast device (any quality, any method)
-  2. Stream accessible from Cast device's network (verified externally)
-  3. HLS playlist and segments fetchable without 404 errors
-**Investigation Areas**:
-  - Network: Can Cast device reach Docker host IP? Firewall rules?
-  - Timing: Are segments available when Cast requests them?
-  - Format: Is HLS output Cast-compatible? Test in VLC first
-  - URLs: Should playlist use absolute URLs instead of relative?
-  - Alternative: Try direct MP4 file playback as baseline test
-**Research**: Yes - need to debug systematically
-**Plans**: TBD
-
 ### Phase 8: Cast Media Playback
 **Goal**: Verify media_controller wiring and mode-based stream type selection
-**Depends on**: Phase 7.1
+**Depends on**: Phase 7
 **Requirements**: CAST-01, CAST-02, CAST-03
 **Success Criteria** (what must be TRUE):
   1. `media_controller.play_media()` successfully starts playback on Cast device
@@ -119,11 +100,10 @@ Plans:
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 6 → 7 → 7.1 → 8
+Phases execute in numeric order: 6 → 7 → 8
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 6. HTTP Streaming Server | v1.1 | 2/2 | Complete | 2026-01-17 |
 | 7. FFmpeg Dual-Mode Output | v1.1 | 2/2 | Complete | 2026-01-17 |
-| 7.1. Cast Playback Debug | v1.1 | 0/TBD | **NEXT** | - |
-| 8. Cast Media Playback | v1.1 | 1/1 | Planned | - |
+| 8. Cast Media Playback | v1.1 | 1/1 | **NEXT** | - |
