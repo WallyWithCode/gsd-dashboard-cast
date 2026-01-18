@@ -66,6 +66,18 @@ class FFmpegEncoder:
         # Create output directory if it doesn't exist
         os.makedirs(output_dir, exist_ok=True)
 
+        # Clean up stale HLS segments from previous sessions (HLS-05)
+        # Prevents accumulation of orphaned .m3u8 and .ts files
+        if self.mode == 'hls':
+            try:
+                for file in os.listdir(self.output_dir):
+                    if file.endswith(('.m3u8', '.ts')):
+                        stale_path = os.path.join(self.output_dir, file)
+                        os.remove(stale_path)
+                logger.debug(f"Cleaned up stale HLS segments from {self.output_dir}")
+            except OSError as e:
+                logger.warning(f"Failed to clean up stale segments: {e}")
+
     def build_ffmpeg_args(self, output_file: str) -> list[str]:
         """Construct FFmpeg argument list based on quality config and output mode.
 
