@@ -28,18 +28,15 @@ Seamless webhook-triggered casting of authenticated web dashboards to Android TV
 - ✓ Structured logging for debugging — v1.0
 - ✓ WSL2 static IP workaround for mDNS limitation — v1.0
 - ✓ Comprehensive documentation with Home Assistant examples — v1.0
+- ✓ HTTP server to serve video streams to Cast device (aiohttp) — v1.1
+- ✓ Dual-mode streaming: `buffered` (HLS) and `low_latency` (fMP4) — v1.1
+- ✓ Per-request mode selection via webhook `mode` parameter — v1.1
+- ✓ Wire up `media_controller.play_media()` to display video on TV — v1.1
+- ✓ Network configuration: Auto-detect host IP for LAN-accessible streams — v1.1
 
 ### Active
 
-**Current Milestone: v1.1 Cast Media Playback**
-
-**Goal:** Complete the Cast playback pipeline with dual-mode streaming for both dashboard reliability and camera feed low-latency.
-
-- [ ] HTTP server to serve video streams to Cast device (aiohttp)
-- [ ] Dual-mode streaming: `buffered` (HLS) and `low_latency` (fMP4)
-- [ ] Per-request mode selection via webhook `mode` parameter
-- [ ] Wire up `media_controller.play_media()` to display video on TV
-- [ ] Network configuration: `STREAM_HOST_IP` and `STREAM_PORT` env vars
+**Planning Next Milestone**
 
 ### Out of Scope
 
@@ -53,22 +50,26 @@ Seamless webhook-triggered casting of authenticated web dashboards to Android TV
 
 ## Context
 
-**Shipped v1.0** with 2,629 LOC Python.
+**Shipped v1.0** with 2,629 LOC Python (2026-01-15)
+**Shipped v1.1** with 2,094 LOC Python total (2026-01-18)
 
-**Tech stack:** Python 3.11, FastAPI, Playwright, pychromecast, FFmpeg, Xvfb, Docker
+**Tech stack:** Python 3.11, FastAPI, aiohttp, Playwright, pychromecast, FFmpeg, Xvfb, Docker
 
 **Primary use case:** Home Assistant automations triggering dashboard displays on Android TV based on events (doorbell → camera feed, motion sensor → security dashboard).
 
 **Architecture:**
 - BrowserManager: Playwright chromium with auth injection
-- CastSessionManager: pychromecast with HDMI-CEC wake
-- StreamManager: Orchestrates Xvfb → Browser → FFmpeg → Cast
-- FastAPI: Webhook endpoints (/start, /stop, /status, /health)
+- CastSessionManager: pychromecast with HDMI-CEC wake, media_controller playback
+- StreamManager: Orchestrates Xvfb → Browser → FFmpeg → HTTP → Cast
+- StreamingServer: aiohttp HTTP server on port 8080 with CORS
+- FFmpegEncoder: Dual-mode (HLS buffered / fMP4 low-latency)
+- FastAPI: Webhook endpoints (/start, /stop, /status, /health) on port 8000
 
 **Known limitations:**
 - mDNS discovery doesn't work in WSL2 (CAST_DEVICE_IP workaround available)
 - Single device only (architecture designed for future multi-device)
 - Software encoding only (hardware acceleration deferred to v2)
+- HLS stream freezes after 6 seconds (buffering configuration tuning needed)
 
 ## Constraints
 
@@ -93,6 +94,12 @@ Seamless webhook-triggered casting of authenticated web dashboards to Android TV
 | CAST_DEVICE_IP static IP fallback | WSL2 mDNS limitation workaround | ✓ Good — Unblocks WSL2/Docker users |
 | asyncio.create_task for streams | Long-running streams outlive request lifecycle | ✓ Good — Clean async pattern |
 | Auto-stop on new /start | Seamless transition for single-device use case | ✓ Good — No manual cleanup needed |
+| aiohttp over FastAPI StaticFiles (v1.1) | Independent server on configurable port | ✓ Good — Allows port separation (8000/8080) |
+| Socket-based IP fallback for get_host_ip() (v1.1) | Hostname resolution may return localhost | ✓ Good — Reliable LAN IP detection |
+| H.264 High Profile Level 4.1 (v1.1) | Universal Cast compatibility | ✓ Good — Works on all Chromecast generations |
+| Silent audio via anullsrc (v1.1) | Cast devices expect audio tracks | ✓ Good — Prevents playback issues |
+| fMP4 movflags: frag_keyframe+empty_moov+default_base_moof (v1.1) | Streaming-friendly fragmentation | ✓ Good — Enables low-latency streaming |
+| Default mode 'hls' (v1.1) | Backward compatibility with existing webhooks | ✓ Good — No breaking changes |
 
 ---
-*Last updated: 2026-01-16 after v1.1 milestone start*
+*Last updated: 2026-01-18 after v1.1 milestone completion*
