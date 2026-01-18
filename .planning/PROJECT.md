@@ -8,6 +8,17 @@ A Docker service that receives webhook requests to render live webpages (dashboa
 
 Seamless webhook-triggered casting of authenticated web dashboards to Android TV, enabling Home Assistant automations to display contextual information on demand.
 
+## Current Milestone: v2.0 Stability and Hardware Acceleration
+
+**Goal:** Production-ready reliability with hardware-accelerated encoding and robust stream lifecycle management.
+
+**Target features:**
+- Fix HLS buffering issue (eliminate 6-second freeze, enable indefinite streaming)
+- Validate fMP4 low-latency mode works correctly
+- Automatic FFmpeg process cleanup when cast stops from device (not just webhook)
+- Intel QuickSync hardware acceleration support (Proxmox GPU passthrough + code integration)
+- Prevent VM lockup from multiple simultaneous streams
+
 ## Requirements
 
 ### Validated
@@ -36,7 +47,14 @@ Seamless webhook-triggered casting of authenticated web dashboards to Android TV
 
 ### Active
 
-**Planning Next Milestone**
+**v2.0 Stability and Hardware Acceleration:**
+- HLS streams play indefinitely without freezing (fix 6-second freeze bug)
+- fMP4 low-latency mode validated and working
+- FFmpeg processes automatically cleaned up when cast stops from device
+- Intel QuickSync hardware acceleration support for reduced CPU usage
+- Proxmox GPU passthrough documentation for `/dev/dri` access
+- Cast session state monitoring to detect device-initiated stops
+- VM remains stable under multiple stream scenarios
 
 ### Out of Scope
 
@@ -102,4 +120,4 @@ Seamless webhook-triggered casting of authenticated web dashboards to Android TV
 | Default mode 'hls' (v1.1) | Backward compatibility with existing webhooks | ✓ Good — No breaking changes |
 
 ---
-*Last updated: 2026-01-18 after v1.1 milestone completion*
+*Last updated: 2026-01-18 after v2.0 milestone initialization*
