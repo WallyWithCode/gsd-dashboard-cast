@@ -18,9 +18,9 @@ Requirements for v1.1 Cast Media Playback milestone. Each maps to roadmap phases
 
 ### Cast Playback
 
-- [ ] **CAST-01**: `media_controller.play_media()` displays HTTP stream on TV
-- [ ] **CAST-02**: Correct `stream_type` parameter used (BUFFERED for HLS, LIVE for fMP4)
-- [ ] **CAST-03**: Correct `content_type` passed to play_media based on mode
+- [x] **CAST-01**: `media_controller.play_media()` displays HTTP stream on TV
+- [x] **CAST-02**: Correct `stream_type` parameter used (BUFFERED for HLS, LIVE for fMP4)
+- [x] **CAST-03**: Correct `content_type` passed to play_media based on mode
 
 ### Network Configuration
 
@@ -76,9 +76,9 @@ Which phases cover which requirements. Updated by create-roadmap.
 | STRM-04 | Phase 6 | Complete |
 | STRM-05 | Phase 6 | Complete |
 | STRM-06 | Phase 6 | Complete |
-| CAST-01 | Phase 8 | Pending |
-| CAST-02 | Phase 8 | Pending |
-| CAST-03 | Phase 8 | Pending |
+| CAST-01 | Phase 8 | Complete |
+| CAST-02 | Phase 8 | Complete |
+| CAST-03 | Phase 8 | Complete |
 | NET-01 | Phase 6 | Complete |
 | NET-02 | Phase 6 | Complete |
 | ENC-01 | Phase 7 | Complete |
@@ -93,4 +93,4 @@ Which phases cover which requirements. Updated by create-roadmap.
 
 ---
 *Requirements defined: 2026-01-17*
-*Last updated: 2026-01-17 after Phase 7 completion*
+*Last updated: 2026-01-18 after Phase 8 completion*

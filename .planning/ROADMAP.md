@@ -95,7 +95,7 @@ Plans:
 **Plans**: 1 plan
 
 Plans:
-- [ ] 08-01-PLAN.md — Verify Cast media playback implementation and mode-based parameters
+- [x] 08-01-PLAN.md — Verify Cast media playback implementation and mode-based parameters
 
 ## Progress
 
@@ -106,4 +106,4 @@ Phases execute in numeric order: 6 → 7 → 8
 |-------|-----------|----------------|--------|-----------|
 | 6. HTTP Streaming Server | v1.1 | 2/2 | Complete | 2026-01-17 |
 | 7. FFmpeg Dual-Mode Output | v1.1 | 2/2 | Complete | 2026-01-17 |
-| 8. Cast Media Playback | v1.1 | 1/1 | **NEXT** | - |
+| 8. Cast Media Playback | v1.1 | 1/1 | Complete | 2026-01-18 |
