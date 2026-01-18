@@ -10,7 +10,7 @@ services:
       # Static Cast device IP (required for Docker - mDNS doesn't work)
       - CAST_DEVICE_IP=10.10.0.31
       # Host IP for stream URLs (REQUIRED for Docker - set to your machine's LAN IP)
-      - STREAM_HOST_IP=10.10.0.100  # <-- CHANGE THIS to your Ubuntu machine's IP
+      - STREAM_HOST_IP=10.10.0.133  # <-- CHANGE THIS to your Ubuntu machine's IP
       # Optional: Discover Cast device by friendly name
       # - CAST_DEVICE_NAME=Living Room TV
     # network_mode: host  # Only works on native Linux - not Docker Desktop
