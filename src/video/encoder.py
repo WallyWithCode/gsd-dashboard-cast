@@ -140,8 +140,9 @@ class FFmpegEncoder:
             args.extend([
                 '-f', 'hls',
                 '-hls_time', '2',  # 2-second segments
-                '-hls_list_size', '10',  # Keep 10 segments in playlist (20s buffer)
-                '-hls_flags', 'delete_segments+append_list',  # Auto-cleanup old segments, append to playlist
+                '-hls_list_size', '20',  # Keep 20 segments in playlist (40s buffer)
+                '-hls_delete_threshold', '5',  # Keep 5 extra segments beyond playlist
+                '-hls_flags', 'delete_segments+append_list+omit_endlist',  # Auto-cleanup, append, signal continuous streaming
                 output_file,
             ])
         else:
