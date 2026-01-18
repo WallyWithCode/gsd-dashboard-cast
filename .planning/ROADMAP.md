@@ -60,7 +60,11 @@ Decimal phases appear between their surrounding integers in numeric order.
   4. CORS headers allow Cast device access
   5. Host IP auto-detected for stream URL construction
 **Research**: Unlikely (FastAPI HTTP serving is established pattern)
-**Plans**: TBD
+**Plans**: 2 plans
+
+Plans:
+- [x] 06-01-PLAN.md — HTTP streaming server with aiohttp and CORS
+- [x] 06-02-PLAN.md — FastAPI lifespan integration and encoder URL construction
 
 ### Phase 7: FFmpeg Dual-Mode Output
 **Goal**: FFmpeg pipeline produces both HLS segments and fMP4 streams based on mode parameter
@@ -73,7 +77,11 @@ Decimal phases appear between their surrounding integers in numeric order.
   4. AAC audio encoding works for Cast playback
   5. Mode selection via webhook parameter switches between outputs
 **Research**: Unlikely (FFmpeg configuration from v1.0 research)
-**Plans**: TBD
+**Plans**: 2 plans
+
+Plans:
+- [x] 07-01-PLAN.md — FFmpeg dual-mode output (HLS and fMP4)
+- [x] 07-02-PLAN.md — API mode selection and parameter flow
 
 ### Phase 7.1: Cast Playback Debug (INSERTED)
 **Goal**: Get video actually displaying on TV screen - MVP blocker
@@ -94,7 +102,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans**: TBD
 
 ### Phase 8: Cast Media Playback
-**Goal**: Cast device plays HTTP video stream from our server
+**Goal**: Verify media_controller wiring and mode-based stream type selection
 **Depends on**: Phase 7.1
 **Requirements**: CAST-01, CAST-02, CAST-03
 **Success Criteria** (what must be TRUE):
@@ -103,7 +111,10 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. fMP4 streams use LIVE stream_type
   4. Correct content_type passed based on mode
 **Research**: Unlikely (pychromecast media_controller already used in v1.0)
-**Plans**: TBD
+**Plans**: 1 plan
+
+Plans:
+- [ ] 08-01-PLAN.md — Verify Cast media playback implementation and mode-based parameters
 
 ## Progress
 
@@ -115,4 +126,4 @@ Phases execute in numeric order: 6 → 7 → 7.1 → 8
 | 6. HTTP Streaming Server | v1.1 | 2/2 | Complete | 2026-01-17 |
 | 7. FFmpeg Dual-Mode Output | v1.1 | 2/2 | Complete | 2026-01-17 |
 | 7.1. Cast Playback Debug | v1.1 | 0/TBD | **NEXT** | - |
-| 8. Cast Media Playback | v1.1 | 0/TBD | Blocked by 7.1 | - |
+| 8. Cast Media Playback | v1.1 | 1/1 | Planned | - |
