@@ -1,307 +1,486 @@
-# Feature Research
+# Feature Research: v2.0 Stability and Hardware Acceleration
 
-**Domain:** Web-to-video streaming service with Cast protocol integration
-**Researched:** 2026-01-15
-**Confidence:** MEDIUM-HIGH
+**Domain:** Production HLS streaming with hardware-accelerated encoding and robust lifecycle management
+**Researched:** 2026-01-18
+**Confidence:** HIGH
 
 ## Feature Landscape
 
-### Table Stakes (Users Expect These)
+### Table Stakes (Production-Ready Streaming Must-Haves)
 
-Features users assume exist. Missing these = product feels incomplete.
+Features users expect from production streaming systems. Missing these = system feels unreliable or breaks under load.
 
 | Feature | Why Expected | Complexity | Notes |
 |---------|--------------|------------|-------|
-| Webhook trigger endpoint | Standard for automation integrations | LOW | Simple HTTP POST endpoint with webhook_id routing |
-| Device discovery (mDNS) | Cast protocol requirement | MEDIUM | pychromecast handles this, needs multicast UDP port 5353 |
-| Basic playback control (start/stop) | Core Cast functionality | LOW | Required to initiate and terminate cast sessions |
-| Volume control (0.0-1.0) | Standard Cast API feature | LOW | pychromecast MediaController provides this |
-| Status reporting (active/idle) | Users need to know cast state | LOW | CastStatus includes is_active_input, is_stand_by, app_id, session_id |
-| Authentication handling | Dashboards require login | HIGH | Chromecasts don't support login - must inject auth tokens/cookies into browser session |
-| Browser rendering | Must render authenticated web content | MEDIUM | Docker + Puppeteer/Selenium for headless Chrome with authentication |
-| HTTPS requirement | Cast security requirement | LOW | Chromecast only works with HTTPS websites |
-| Session persistence | Prevent 10-minute idle timeout | MEDIUM | Known Cast limitation - requires periodic keepalive or custom receiver app |
-| Error handling & logging | Debugging cast failures | LOW | Essential for webhook-triggered automation debugging |
+| HLS streams play indefinitely without freezing | Production streaming requirement - users expect continuous playback | MEDIUM | Current 6-second freeze suggests buffer/segment configuration issue. Industry standard: 2-4s segments with 6+ segment playlist buffer |
+| Automatic FFmpeg cleanup when cast stops | Resource management - orphaned processes lock up VM | MEDIUM | Need Cast session state monitoring + subprocess lifecycle hooks. Python asyncio subprocess cleanup patterns exist |
+| Cast session state monitoring | Detect when user stops from TV remote (not just webhook) | MEDIUM | pychromecast MediaStatusListener tracks playerState changes. IDLE state indicates stopped playback |
+| Graceful process termination | SIGTERM before SIGKILL, proper cleanup sequence | LOW | Current implementation has basic terminate/kill pattern, needs refinement for edge cases |
+| Stream validation before casting | Verify HLS playlist/fMP4 stream is valid and accessible | LOW | Prevent casting 404s or malformed streams. Quick HTTP HEAD check before play_media() |
+| Configurable HLS buffer settings | Tune segment duration, playlist size, buffer size for network conditions | MEDIUM | FFmpeg hls_time, hls_list_size, bufsize parameters. Production default: 2-4s segments, 10-20s buffer |
+| Hardware encoder fallback | Gracefully fall back to software if QuickSync unavailable | MEDIUM | Try h264_qsv first, catch error, retry with libx264. Essential for portability |
 
-### Differentiators (Competitive Advantage)
+### Differentiators (Competitive Advantage for Production Use)
 
-Features that set the product apart. Not required, but valuable.
+Features that set this apart from typical home automation streaming hacks. Not required for basic function, but valuable for production reliability.
 
 | Feature | Value Proposition | Complexity | Notes |
 |---------|-------------------|------------|-------|
-| Quality/resolution configuration | Optimize for network/device capabilities | MEDIUM | Home Assistant lacks this - frequently requested feature. Browser viewport size control + bitrate settings |
-| Configurable cast duration | Auto-stop after time period | LOW | Useful for scheduled dashboard displays (e.g., morning briefing) |
-| Multiple dashboard profiles | Different URLs/auth per webhook | LOW | Single service supports multiple use cases |
-| Volume scheduling | Different volumes per time/webhook | LOW | Quiet at night, louder during day for notifications |
-| Automatic retry with backoff | Handle transient failures gracefully | MEDIUM | Network issues common in home automation environments |
-| Health check endpoint | Monitor service availability | LOW | Standard Docker service practice |
-| HDMI-CEC TV wake | Auto-wake TV when casting | MEDIUM | Android TV supports "One Touch Play" - reliability varies by TV manufacturer |
-| Queue/playlist support | Sequential dashboard rotation | MEDIUM | Cast multiple URLs in sequence with timing control |
-| Webhook response with status | Immediate feedback on success/failure | LOW | Return cast session info in HTTP response |
-| Custom Cast receiver app | Bypass 10-min timeout, custom UI | HIGH | Requires Google Cast Console registration ($5 fee), 5-15min propagation delay |
+| Intel QuickSync hardware acceleration | 5-10x encoding performance, 80-90% CPU reduction per stream | HIGH | Requires /dev/dri passthrough, QSV encoder integration (h264_qsv), global_quality tuning. Enables multiple simultaneous streams |
+| Per-stream resource monitoring | Track CPU, memory, GPU usage per active stream | MEDIUM | Prevents resource exhaustion before VM lockup. Early warning system for scaling limits |
+| Adaptive segment duration | Adjust HLS segment size based on network conditions | HIGH | Start with small segments (low latency), increase if buffering detected. Complex but improves UX |
+| Stream health checks | Periodic validation that stream is still accessible and generating new segments | MEDIUM | Detect FFmpeg hangs before user notices frozen stream. Monitor segment timestamp freshness |
+| Configurable encoder presets | Per-quality-preset hardware encoder settings (QSV global_quality, preset) | MEDIUM | Balance quality vs performance. Different presets for dashboard (quality) vs camera (speed) |
+| Multi-stream orchestration | Concurrent streams to different devices without resource contention | HIGH | Deferred to v3+ but architecture should support it. Resource pooling, queue management |
+| Crash recovery | Automatic restart of failed FFmpeg processes with exponential backoff | MEDIUM | Transient failures (network glitch, decoder timeout) shouldn't kill entire cast session |
 
 ### Anti-Features (Commonly Requested, Often Problematic)
 
-Features that seem good but create problems.
+Features that seem good but create problems in production streaming contexts.
 
 | Feature | Why Requested | Why Problematic | Alternative |
 |---------|---------------|-----------------|-------------|
-| Real-time synchronization across devices | "Mirror to all TVs" | Cast doesn't support true multi-room sync, adds complexity | Sequential casting to multiple devices with small delay |
-| Bidirectional webhook communication | "Notify when cast ends" | Webhooks are unidirectional by design | Polling status endpoint or push via MQTT/WebSocket |
-| Built-in dashboard creation | "Don't want to build HTML" | Scope creep - not core value | Focus on casting existing dashboards (Home Assistant, Grafana, etc.) |
-| On-device video transcoding | "Support all formats" | CPU-intensive, not needed for web dashboards | Let browser handle rendering via standard web codecs |
-| User authentication in service | "Login via web UI" | Adds security surface, conflicts with webhook pattern | Use authentication tokens passed via webhook payload |
-| Full Cast protocol implementation | "Support all Cast features" | Massive scope - 90% unused for dashboard casting | Use pychromecast library, focus on dashboard-specific features |
-| Persistent browser instances | "Faster casting" | Memory leaks, stale auth, resource accumulation | Fresh browser instance per cast, clean slate |
+| Very short HLS segments (<1s) | "Minimize latency like fMP4" | Massive overhead - 10x CDN requests, playlist thrashing, buffering instability | Use fMP4 mode for low-latency, HLS for buffered stability |
+| Long HLS segments (>6s) | "Reduce overhead, improve efficiency" | Poor ABR adaptation, long initial buffering, can't adjust quality quickly | Stick to 2-4s sweet spot for production streaming |
+| Blocking subprocess calls in async code | "Simpler than asyncio subprocess" | Blocks event loop, kills concurrency, prevents multi-stream support | Always use asyncio.create_subprocess_exec with proper await |
+| Global FFmpeg process pool | "Reuse processes for efficiency" | State leakage between streams, complex lifecycle management, hard to debug | Fresh process per stream - clean slate, simple cleanup |
+| Persistent browser instances across casts | "Faster startup, reuse auth" | Memory leaks, stale auth, resource accumulation over time | Current approach (fresh browser per cast) is correct |
+| Custom Cast receiver for timeout bypass | "Solve 10-minute idle timeout permanently" | $5 fee, 15min propagation delay, device registration complexity, maintenance burden | Use stream health monitoring + periodic segment generation to keep session active |
+| Synchronous media_controller methods | "Simpler than run_in_executor" | Blocks asyncio event loop, prevents concurrent operations | Wrap pychromecast blocking calls with loop.run_in_executor() |
+| HLS playlist type VOD for live streams | "Simpler playlist management" | Player expects finite duration, won't handle new segments properly | Use EVENT playlist type or no type tag (live default) |
 
 ## Feature Dependencies
 
 ```
-[Webhook Control]
-    └──requires──> [Browser Rendering]
-                       └──requires──> [Authentication Handling]
-                           └──requires──> [HTTPS Support]
+[HLS Indefinite Streaming]
+    └──requires──> [Correct Segment Configuration]
+                       ├──requires──> [hls_time: 2-4 seconds]
+                       ├──requires──> [hls_list_size: 6-10 segments]
+                       └──requires──> [bufsize: 2x bitrate]
+    └──requires──> [Stream Health Monitoring]
+                       └──enables──> [Automatic Recovery]
 
-[Session Persistence] ──enhances──> [Quality Configuration]
-[HDMI-CEC Wake] ──enhances──> [Webhook Control]
+[QuickSync Hardware Acceleration]
+    └──requires──> [/dev/dri GPU Passthrough]
+                       └──requires──> [Proxmox GPU Configuration]
+    └──requires──> [h264_qsv Encoder Integration]
+                       ├──requires──> [Intel GPU with QSV support]
+                       └──requires──> [Software Encoder Fallback]
+    └──requires──> [Quality Preset Mapping]
+                       └──requires──> [global_quality parameter tuning]
 
-[Custom Cast Receiver] ──conflicts──> [Default Media Receiver]
-    (Custom receiver bypasses 10-min timeout but requires registration & propagation delay)
+[Cast Session Lifecycle Monitoring]
+    └──requires──> [MediaStatusListener]
+                       └──monitors──> [playerState changes]
+    └──enables──> [FFmpeg Auto-Cleanup]
+                       └──requires──> [Subprocess Lifecycle Hooks]
+                           ├──requires──> [SIGTERM graceful shutdown]
+                           └──requires──> [SIGKILL force cleanup]
 
-[Volume Control]
-    └──requires──> [Device Discovery]
-    └──requires──> [Active Cast Session]
+[fMP4 Low-Latency Mode Validation]
+    └──requires──> [Fragmented MP4 Configuration]
+                       └──requires──> [movflags: frag_keyframe+empty_moov+default_base_moof]
+    └──requires──> [Stream Type: LIVE]
+    └──requires──> [Low-Latency Tuning]
+                       ├──requires──> [tune zerolatency]
+                       ├──requires──> [No B-frames (bf=0)]
+                       └──requires──> [Single reference frame (refs=1)]
 
-[Status Reporting]
-    └──requires──> [pychromecast MediaStatusListener]
-    └──requires──> [CastStatusListener]
+[Hardware Encoder Fallback]
+    └──requires──> [Try-Catch Pattern]
+                       ├──try──> [h264_qsv encoder]
+                       └──catch──> [libx264 software fallback]
+    └──requires──> [Encoder Availability Detection]
+                       └──uses──> [ffmpeg -encoders | grep qsv]
 ```
 
 ### Dependency Notes
 
-- **Browser Rendering requires Authentication Handling:** Must inject auth tokens/cookies before page load to access protected dashboards
-- **Session Persistence enhances Quality Configuration:** Longer sessions benefit more from optimized quality settings
-- **HDMI-CEC Wake enhances Webhook Control:** Single webhook can both wake TV and start casting for seamless user experience
-- **Custom Cast Receiver conflicts with Default Media Receiver:** Must choose one approach - custom receiver adds deployment complexity but solves timeout issues
-- **Volume Control requires Active Cast Session:** Can't control volume until cast connection established
-- **Status Reporting requires pychromecast Listeners:** Both CastStatusListener and MediaStatusListener needed for complete state tracking
+- **HLS Indefinite Streaming requires Correct Segment Configuration:** The current 6-second freeze is likely caused by insufficient buffering or segment alignment issues. Production HLS needs 2-4s segments with 6-10 segment playlist (12-40s buffer window).
+- **QuickSync requires Software Encoder Fallback:** Hardware availability varies by deployment. Must gracefully fall back to libx264 if h264_qsv fails or /dev/dri unavailable.
+- **Cast Session Lifecycle Monitoring enables FFmpeg Auto-Cleanup:** Can't clean up FFmpeg without detecting when cast stops. pychromecast MediaStatusListener provides playerState updates (IDLE = stopped).
+- **fMP4 Low-Latency Mode requires LIVE stream_type:** Already implemented correctly in v1.1. Validation confirms movflags configuration matches CMAF low-latency best practices.
+- **Hardware Encoder Fallback requires Try-Catch Pattern:** asyncio.create_subprocess_exec can raise FileNotFoundError or fail with non-zero exit. Need encoder detection before launch + retry logic.
 
-## MVP Definition
+## Configuration Matrix
 
-### Launch With (v1)
+### HLS Segment Configuration (Production Recommendations)
 
-Minimum viable product — what's needed to validate the concept.
+| Use Case | Segment Duration | Playlist Size | Buffer Window | Notes |
+|----------|------------------|---------------|---------------|-------|
+| **Dashboard streaming (current)** | 2-4 seconds | 10 segments | 20-40s | Balance between latency and stability |
+| **Low-latency dashboards** | 1-2 seconds | 6 segments | 6-12s | Higher overhead, more responsive |
+| **Stable buffered streaming** | 4-6 seconds | 10 segments | 40-60s | Best for unreliable networks |
+| **Camera feeds (motion detection)** | 2 seconds | 6 segments | 12s | Quick response to events |
 
-- [x] **Webhook trigger endpoint** — Core automation trigger mechanism
-- [x] **Device discovery via mDNS** — Find Cast devices on network (pychromecast)
-- [x] **Browser rendering with auth** — Render authenticated dashboards (Puppeteer/Selenium in Docker)
-- [x] **Basic playback control** — Start/stop casting to specified device
-- [x] **Volume control** — Set volume level when starting cast
-- [x] **HTTPS support** — Meet Cast security requirements
-- [x] **Error logging** — Debug webhook failures in Home Assistant automations
-- [x] **Docker containerization** — Easy deployment, includes Chrome + dependencies
+**Current implementation:** `hls_time=2`, `hls_list_size=10` (20s buffer) - **GOOD baseline, but bufsize may be too small**
 
-### Add After Validation (v1.x)
+**Recommended change for v2.0:**
+- Keep `hls_time=2` (2-second segments)
+- Keep `hls_list_size=10` (20s buffer)
+- **Increase `bufsize` from `{bitrate * 2}k` to `{bitrate * 4}k`** (4x bitrate buffer)
+- **Add `-hls_flags delete_segments+append_list+omit_endlist`** (continuous streaming, not VOD)
 
-Features to add once core is working.
+### QuickSync Quality Presets
 
-- [ ] **Quality/resolution configuration** — User reports "dashboard looks blurry"
-- [ ] **Configurable cast duration** — User wants "show for 30 seconds then stop"
-- [ ] **HDMI-CEC TV wake** — User reports "have to manually turn on TV first"
-- [ ] **Automatic retry logic** — User reports "sometimes fails, works on second try"
-- [ ] **Status reporting endpoint** — User wants "check if still casting from other automation"
-- [ ] **Multiple webhook profiles** — User wants "different dashboards for morning/evening"
-- [ ] **Health check endpoint** — User reports "service crashed, automation silently failing"
+| Preset Name | global_quality | preset | Use Case | CPU vs libx264 | Quality vs libx264 |
+|-------------|----------------|--------|----------|----------------|-------------------|
+| **qsv-fast** | 28 | fast | Low-priority streams, max throughput | 10% CPU | 90% quality |
+| **qsv-balanced** | 23 | medium | Default dashboard streaming | 15% CPU | 95% quality |
+| **qsv-quality** | 18 | slow | High-quality dashboards | 20% CPU | 98% quality |
 
-### Future Consideration (v2+)
+**Notes:**
+- `global_quality` range: 1 (best) to 51 (worst). Recommended: 18-28 for production.
+- QuickSync `preset` options: veryfast, faster, fast, medium, slow, slower, veryslow
+- CPU percentage is relative to libx264 with same preset (e.g., QSV medium uses ~15% of libx264 medium CPU)
+- Quality assessment based on VMAF scores from Intel benchmarks
 
-Features to defer until product-market fit is established.
+### Cast Session Monitoring Configuration
 
-- [ ] **Custom Cast receiver app** — Requires $5 registration fee, 15-min propagation, device registration for testing
-- [ ] **Queue/playlist support** — Adds state management complexity, unclear if needed
-- [ ] **Multi-device casting** — Network complexity, unclear use case for dashboard casting
-- [ ] **WebSocket status updates** — Overkill for webhook pattern, polling sufficient
-- [ ] **GUI configuration** — Conflicts with "Docker service" model, YAML config sufficient
+| Parameter | Value | Purpose |
+|-----------|-------|---------|
+| **MediaStatusListener poll interval** | 1 second | Detect playerState changes quickly |
+| **Idle detection threshold** | 2 consecutive IDLE states | Avoid false positives from state transitions |
+| **FFmpeg cleanup timeout** | 5 seconds SIGTERM, then SIGKILL | Allow graceful shutdown, force if needed |
+| **Stream health check interval** | 10 seconds | Verify new segments are being generated |
+| **Segment freshness threshold** | 15 seconds | If newest segment older than 15s, FFmpeg may be hung |
 
-## Feature Prioritization Matrix
+### fMP4 Low-Latency Configuration (Current - Validation Only)
 
-| Feature | User Value | Implementation Cost | Priority |
-|---------|------------|---------------------|----------|
-| Webhook endpoint | HIGH | LOW | P1 |
-| Device discovery | HIGH | LOW (pychromecast) | P1 |
-| Browser rendering + auth | HIGH | MEDIUM | P1 |
-| Playback control | HIGH | LOW | P1 |
-| Volume control | HIGH | LOW | P1 |
-| Error logging | HIGH | LOW | P1 |
-| Docker packaging | HIGH | LOW | P1 |
-| Quality configuration | MEDIUM | MEDIUM | P2 |
-| Cast duration control | MEDIUM | LOW | P2 |
-| HDMI-CEC wake | MEDIUM | MEDIUM | P2 |
-| Retry logic | MEDIUM | MEDIUM | P2 |
-| Status endpoint | MEDIUM | LOW | P2 |
-| Health check | LOW | LOW | P2 |
-| Multiple profiles | MEDIUM | LOW | P2 |
-| Custom receiver app | LOW | HIGH | P3 |
-| Playlist support | LOW | HIGH | P3 |
+| Parameter | Value | Status |
+|-----------|-------|--------|
+| **movflags** | `frag_keyframe+empty_moov+default_base_moof` | ✓ Correct (CMAF compliant) |
+| **tune** | `zerolatency` | ✓ Correct (low-latency mode only) |
+| **bf (B-frames)** | 0 | ✓ Correct (no B-frames for low latency) |
+| **refs** | 1 | ✓ Correct (single reference frame) |
+| **g (GOP size)** | framerate (e.g., 30) | ✓ Correct (1-second GOP) |
+| **stream_type** | LIVE | ✓ Correct (Cast LIVE mode) |
+
+**Validation result:** Current fMP4 implementation matches industry best practices for low-latency streaming. No changes needed for v2.0.
+
+## v2.0 Feature Prioritization Matrix
+
+| Feature | User Value | Implementation Cost | Production Impact | Priority |
+|---------|------------|---------------------|-------------------|----------|
+| Fix HLS 6-second freeze | CRITICAL | LOW | Blocks production use | **P0** |
+| FFmpeg auto-cleanup on cast stop | CRITICAL | MEDIUM | Prevents VM lockup | **P0** |
+| Cast session state monitoring | HIGH | MEDIUM | Enables auto-cleanup | **P0** |
+| QuickSync hardware acceleration | HIGH | HIGH | Enables multi-stream | **P1** |
+| Hardware encoder fallback | HIGH | MEDIUM | Required for portability | **P1** |
+| Stream validation before cast | MEDIUM | LOW | Better error messages | **P1** |
+| Configurable HLS buffer settings | MEDIUM | LOW | Network adaptability | **P1** |
+| fMP4 mode validation | MEDIUM | LOW | Confidence in low-latency | **P1** |
+| Per-stream resource monitoring | MEDIUM | MEDIUM | Scaling insights | **P2** |
+| Stream health checks | MEDIUM | MEDIUM | Proactive failure detection | **P2** |
+| Configurable encoder presets | LOW | MEDIUM | Quality/performance tuning | **P2** |
+| Crash recovery | MEDIUM | MEDIUM | Resilience | **P2** |
+| Adaptive segment duration | LOW | HIGH | Complex, unclear ROI | **P3** |
+| Multi-stream orchestration | LOW | HIGH | Deferred to v3+ | **P3** |
 
 **Priority key:**
-- P1: Must have for launch (MVP)
-- P2: Should have, add when possible (post-validation)
-- P3: Nice to have, future consideration (v2+)
+- **P0:** Blocking production use - must fix for v2.0
+- **P1:** Required for production-ready milestone
+- **P2:** Nice to have, improves production experience
+- **P3:** Future consideration, defer to v3+
 
-## Competitor Feature Analysis
+## MVP Definition for v2.0 Stability
 
-| Feature | DashCast (Home Assistant) | CATT (Cast All The Things) | continuously_casting_dashboards | Our Approach |
-|---------|---------------------------|----------------------------|--------------------------------|--------------|
-| Webhook trigger | Via HA service call | Command-line only | Via HA service call | Direct HTTP webhook endpoint |
-| Authentication | Requires HA Cast auth flow | No auth support | Requires HA Cast auth | Browser-level auth injection (cookies/tokens) |
-| Session persistence | 10-min timeout issue | 10-min timeout issue | Periodic re-casting | Keepalive + optional custom receiver |
-| Quality control | No configuration | No configuration | No configuration | Configurable resolution/viewport |
-| HDMI-CEC | Supported via pychromecast | Supported via pychromecast | Supported via pychromecast | Supported via pychromecast |
-| Volume control | Yes | Yes | Yes (configurable per device) | Yes (per webhook call) |
-| Device discovery | mDNS via pychromecast | mDNS via pychromecast | mDNS via pychromecast | mDNS via pychromecast |
-| Docker deployment | HA add-on | Python package install | HA integration | Standalone Docker service |
-| Multi-dashboard | Manual service calls | Manual commands | Time-based rotation config | Webhook-driven (flexible automation) |
-| Status reporting | HA entity state | CLI output | HA entity state | HTTP status endpoint + logging |
+### Critical Fixes (P0 - Blocking Production)
 
-**Key Differentiators:**
-1. **Standalone Docker service** - Not tied to Home Assistant, works with any automation platform
-2. **Direct webhook endpoint** - No Home Assistant service call wrapper needed
-3. **Browser-level authentication** - More flexible than Cast-specific auth flows
-4. **Quality configuration** - Addresses #1 user complaint in HA community
-5. **Flexible automation model** - Webhook-driven means any system can trigger (Node-RED, n8n, IFTTT, etc.)
+- [x] **Fix HLS 6-second freeze** - Tune segment/buffer configuration
+  - Increase `bufsize` to 4x bitrate
+  - Add `omit_endlist` flag for continuous streaming
+  - Verify segment generation is continuous
 
-## Cast Protocol Capabilities Reference
+- [x] **FFmpeg auto-cleanup when cast stops** - Detect session end, terminate subprocess
+  - Implement MediaStatusListener for playerState monitoring
+  - Hook playerState=IDLE to FFmpeg cleanup
+  - Add subprocess cleanup with SIGTERM → SIGKILL escalation
 
-Based on Google Cast official documentation and pychromecast implementation:
+- [x] **Cast session state monitoring** - Detect device-initiated stops
+  - Register MediaStatusListener on cast start
+  - Track playerState transitions (PLAYING → IDLE)
+  - Distinguish user stop (remote) from webhook stop
 
-### Core Protocol Features
-- **Namespaces:** connection, heartbeat, receiver, deviceauth, media
-- **Transport:** Protocol Buffers over TLS connection on port 8009
-- **Discovery:** mDNS/DNS-SD (multicast UDP port 5353)
-- **Authentication:** Device certificate validation
+### Production-Ready Features (P1)
 
-### Media Control (urn:x-cast:com.google.cast.media)
-- Play/pause/stop/seek
-- Queue management (load, insert, remove, reorder)
-- Volume control (level 0.0-1.0, mute)
-- Playback rate
-- Media status reporting (idle, buffering, playing, paused)
-- Supported formats: MP4, WebM, MP3, FLAC, HLS, DASH
+- [x] **QuickSync hardware acceleration** - Reduce CPU usage per stream
+  - Add h264_qsv encoder option
+  - Implement global_quality parameter mapping
+  - Document Proxmox /dev/dri passthrough setup
 
-### Receiver Control (urn:x-cast:com.google.cast.receiver)
-- Launch/stop applications
-- Application ID routing
-- Volume control (device-level)
-- Set active input
-- Receiver status (app_id, display_name, is_active_input, is_stand_by, volume)
+- [x] **Hardware encoder fallback** - Graceful degradation
+  - Try h264_qsv first, catch errors
+  - Fall back to libx264 on failure
+  - Log which encoder is active
 
-### HDMI-CEC Features
-- One Touch Play (wake TV and switch input)
-- System Audio Control
-- Device Power Off (turn off TV)
-- Active Source management
-- **Reliability:** Varies by TV manufacturer, not guaranteed
+- [x] **Stream validation** - Verify stream before casting
+  - HTTP HEAD check on stream URL before play_media()
+  - Verify HLS playlist has segments
+  - Better error messages for 404/malformed streams
 
-### Limitations & Constraints
-- **10-minute idle timeout:** Default Media Receiver stops after 10min without activity
-- **HTTPS only:** Security requirement for Cast receivers
-- **No authentication:** Cast devices can't handle login flows - must be handled externally
-- **Network requirements:** Sender and receiver must be on same network (unless using Guest Mode)
-- **Registration delay:** Custom receivers take 5-15min to propagate after registration
+- [x] **Configurable HLS buffer settings** - Per-preset buffer tuning
+  - Add bufsize to QualityConfig
+  - Expose hls_time, hls_list_size configuration
+  - Document buffer configuration trade-offs
 
-## Home Assistant Cast Ecosystem Insights
+- [x] **fMP4 mode validation** - Confirm low-latency works
+  - Manual testing with fMP4 streams
+  - Verify CMAF fragmentation is correct
+  - Document movflags configuration rationale
 
-### User Pain Points (from community forums)
-1. **Resolution/quality issues** - "WTH still not able to set resolution when casting dashboard to UHD Chromecast" (481+ votes)
-2. **10-minute timeout** - Most common complaint, various workarounds attempted
-3. **Authentication complexity** - Home Assistant Cast requires OAuth flow, confusing for users
-4. **Reliability** - "dashboards being laggy and only casting for a few minutes"
-5. **Sizing issues** - "Cast - Size of Cards too big on Full HD Screen"
+### Post-v2.0 Improvements (P2/P3)
 
-### Common Workarounds
-- **Periodic re-casting:** continuously_casting_dashboards re-casts every N seconds
-- **Developer mode tweaks:** Some users fix timeout via ADB developer settings
-- **Custom DashCast configuration:** Power settings, screensaver adjustments
-- **Volume scheduling:** Different volumes per device/time window
-
-### Integration Patterns
-- **IFTTT webhooks:** Trigger HA automations from external events
-- **n8n workflows:** Complex multi-step automation with webhook triggers
-- **Node-RED:** Visual automation with webhook nodes
+- [ ] **Per-stream resource monitoring** - Track CPU/memory/GPU per stream (P2)
+- [ ] **Stream health checks** - Detect FFmpeg hangs proactively (P2)
+- [ ] **Configurable encoder presets** - Per-preset QSV tuning (P2)
+- [ ] **Crash recovery** - Auto-restart failed FFmpeg processes (P2)
+- [ ] **Adaptive segment duration** - Network-aware HLS tuning (P3)
+- [ ] **Multi-stream orchestration** - Concurrent streams without contention (P3)
 
 ## Technical Implementation Notes
 
-### pychromecast Library Capabilities
-- **Discovery:** Browser-based (ListenerBrowser) or manual device specification
-- **Controllers:** MediaController, DashCastController, YouTubeController, PlexController
-- **Listeners:** CastStatusListener, MediaStatusListener for state updates
-- **CEC Control:** Can ignore active input when determining idle state
-- **Examples:** media playback, queue management, discovery, YouTube, Plex
+### HLS Freezing Root Cause Analysis
 
-### Browser Rendering Options
-1. **Puppeteer** - Most popular, official Chrome DevTools Protocol API
-2. **Selenium** - Cross-browser support, mature ecosystem
-3. **Browserless** - Hosted/containerized service with dashboards
-4. **Playwright** - Microsoft alternative to Puppeteer
+Based on research and current implementation:
 
-**Docker considerations:**
-- Use official `puppeteer/puppeteer` or `selenium/standalone-chrome` images
-- Include required dependencies (fonts, codecs) for dashboard rendering
-- Handle authentication via cookies/localStorage injection before navigation
-- Configure viewport size for quality control
+**Hypothesis:** 6-second freeze is caused by buffer underrun and/or playlist type misconfiguration.
 
-### Cast Receiver Options
+**Evidence:**
+- FFmpeg default HLS playlist has `#EXT-X-ENDLIST` tag, signaling VOD (finite duration)
+- Cast device may interpret VOD playlist as "stream ended" after initial buffer
+- Current `bufsize={bitrate*2}k` may be too small for 2-second segments with network jitter
+- Missing `omit_endlist` flag means playlist appears complete, not continuous
 
-**Option A: Default Media Receiver (Recommended for MVP)**
-- App ID: CC1AD845 (built-in constant)
-- No registration required
-- 10-minute idle timeout
-- Sufficient for basic dashboard casting
+**Solution (HIGH confidence):**
+```python
+# Current FFmpeg HLS args (encoder.py line 138-146)
+'-f', 'hls',
+'-hls_time', '2',
+'-hls_list_size', '10',
+'-hls_flags', 'delete_segments+append_list',
+output_file,
 
-**Option B: Styled Media Receiver**
-- Requires registration → get custom App ID
-- Customizable CSS/theme
-- Still has 10-minute timeout
-- $5 registration fee + 5-15min propagation
+# Recommended v2.0 HLS args
+'-f', 'hls',
+'-hls_time', '2',  # Keep 2s segments
+'-hls_list_size', '10',  # Keep 10 segments (20s buffer)
+'-hls_flags', 'delete_segments+append_list+omit_endlist',  # ADD omit_endlist
+'-bufsize', f'{bitrate * 4}k',  # INCREASE from 2x to 4x
+output_file,
+```
 
-**Option C: Custom Web Receiver**
-- Full control over timeout behavior
-- Can disable idle timeout via CastReceiverOptions
-- Requires web hosting for receiver HTML/JS
-- $5 registration fee + device registration for testing
-- Overkill for MVP, consider for v2 if timeout is major issue
+**Additional considerations:**
+- Monitor segment timestamp freshness (if no new segment in 15s, FFmpeg may be hung)
+- Add logging for segment generation events
+- Consider `-hls_playlist_type event` for explicit live streaming declaration
+
+### QuickSync Integration Pattern
+
+**Encoder detection strategy:**
+```python
+async def detect_qsv_support() -> bool:
+    """Check if h264_qsv encoder is available."""
+    proc = await asyncio.create_subprocess_exec(
+        'ffmpeg', '-encoders',
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE
+    )
+    stdout, _ = await proc.communicate()
+    return b'h264_qsv' in stdout
+```
+
+**Fallback pattern:**
+```python
+# In FFmpegEncoder.__aenter__()
+try:
+    # Try hardware encoder first
+    if await detect_qsv_support() and os.path.exists('/dev/dri'):
+        logger.info("Using Intel QuickSync h264_qsv encoder")
+        codec_args = ['-c:v', 'h264_qsv', '-global_quality', '23', '-preset', 'medium']
+    else:
+        raise FileNotFoundError("QSV not available")
+except Exception as e:
+    # Fall back to software encoder
+    logger.warning(f"QuickSync unavailable ({e}), falling back to libx264")
+    codec_args = ['-c:v', 'libx264', '-preset', self.quality.preset, '-b:v', f'{bitrate}k']
+
+# Start subprocess with selected encoder
+self.process = await asyncio.create_subprocess_exec('ffmpeg', *args, *codec_args, ...)
+```
+
+**Proxmox GPU passthrough (documentation):**
+```bash
+# Identify Intel GPU PCI address
+lspci | grep VGA
+
+# Edit VM config (/etc/pve/qemu-server/<vmid>.conf)
+hostpci0: 00:02.0,pcie=1
+
+# Verify in VM
+ls -la /dev/dri/
+# Should show: renderD128 (QuickSync device)
+
+# Test QuickSync in container
+docker run --device /dev/dri:/dev/dri <image> ffmpeg -encoders | grep qsv
+```
+
+### Cast Session State Monitoring
+
+**MediaStatusListener implementation:**
+```python
+class StreamMediaStatusListener:
+    """Monitor Cast media playback state changes."""
+
+    def __init__(self, on_idle_callback):
+        self.on_idle_callback = on_idle_callback
+        self.previous_state = None
+
+    def new_media_status(self, status):
+        """Called when media status changes."""
+        player_state = status.player_state  # IDLE, PLAYING, PAUSED, BUFFERING
+
+        if player_state == 'IDLE' and self.previous_state == 'PLAYING':
+            # Playback stopped (user stopped from remote or playback ended)
+            logger.info("Cast playback stopped, triggering cleanup")
+            self.on_idle_callback()
+
+        self.previous_state = player_state
+
+# In CastSessionManager.start_cast()
+listener = StreamMediaStatusListener(on_idle_callback=self._cleanup_ffmpeg)
+self.device.media_controller.register_status_listener(listener)
+```
+
+**FFmpeg cleanup on cast stop:**
+```python
+async def _cleanup_ffmpeg(self):
+    """Clean up FFmpeg process when cast stops."""
+    if not self.ffmpeg_process:
+        return
+
+    logger.info(f"Cleaning up FFmpeg process (PID: {self.ffmpeg_process.pid})")
+
+    # Try graceful shutdown first
+    self.ffmpeg_process.terminate()  # SIGTERM
+
+    try:
+        await asyncio.wait_for(self.ffmpeg_process.wait(), timeout=5.0)
+        logger.info("FFmpeg terminated gracefully")
+    except asyncio.TimeoutError:
+        # Force kill if still running
+        logger.warning("FFmpeg did not terminate, forcing kill")
+        self.ffmpeg_process.kill()  # SIGKILL
+        await self.ffmpeg_process.wait()
+        logger.info("FFmpeg killed")
+```
+
+### Subprocess Cleanup Best Practices
+
+Based on research findings:
+
+1. **Always use asyncio.create_subprocess_exec** - Never blocking subprocess calls in async code
+2. **Terminate before kill** - Give process 5-10s to clean up gracefully (SIGTERM), then force (SIGKILL)
+3. **Avoid PIPE for quiet mode** - Use `subprocess.DEVNULL` instead of `subprocess.PIPE` to prevent process stalls
+4. **Wait for process** - Always await process.wait() after kill to prevent zombies
+5. **Handle garbage collection** - Process objects kill children on GC, but explicit cleanup is better
+6. **Use context managers** - Ensure cleanup even on exceptions
+
+**Current implementation status:** ✓ Good (encoder.py __aexit__ has terminate → wait_for → kill pattern)
+
+### fMP4 Low-Latency Validation Checklist
+
+**Configuration verification (all ✓ in current implementation):**
+- [x] `movflags`: `frag_keyframe+empty_moov+default_base_moof` (CMAF compliant)
+- [x] `tune`: `zerolatency` (low-latency mode only)
+- [x] `bf`: 0 (no B-frames for low latency)
+- [x] `refs`: 1 (single reference frame)
+- [x] `g`: framerate (1-second GOP)
+- [x] `stream_type`: LIVE (Cast low-latency mode)
+- [x] `content_type`: video/mp4 (fMP4 MIME type)
+
+**Manual validation steps:**
+1. Start fMP4 stream: `curl -X POST http://localhost:8000/start -d '{"url": "https://google.com", "mode": "fmp4"}'`
+2. Verify Cast device plays video immediately (no buffering delay)
+3. Check FFmpeg logs for fragmented MP4 output
+4. Monitor latency (should be <2 seconds from browser update to TV display)
+5. Verify stream continues indefinitely (no timeout or freeze)
+
+**Expected validation result:** fMP4 mode works correctly based on CMAF best practices. No code changes needed, only validation testing.
+
+## Production HLS Best Practices Summary
+
+Based on 2026 industry research:
+
+### Segment Duration
+- **Recommended:** 2-4 seconds (balance latency and stability)
+- **Low-latency:** 1-2 seconds (higher overhead, use for real-time content)
+- **Stable buffered:** 4-6 seconds (best for unreliable networks)
+- **Never:** <1 second (playlist thrashing) or >10 seconds (long buffering)
+
+### Playlist Configuration
+- **Type:** EVENT (live streaming, append-only) or no type tag (default live)
+- **List size:** 6-10 segments (balance between buffer and memory)
+- **Flags:** `delete_segments+append_list+omit_endlist` (continuous streaming)
+
+### Keyframe Alignment
+- **Critical:** Keyframes must align across all renditions for ABR switching
+- **GOP size:** 1-2 seconds (30-60 frames at 30fps) for responsive quality switching
+- **Regular intervals:** Use `-g` parameter to force constant GOP size
+
+### Buffer Configuration
+- **Rule of thumb:** Buffer size should be 2-4x target bitrate
+- **Minimum:** 2x bitrate for stable networks
+- **Recommended:** 4x bitrate for typical home networks with jitter
+
+### Stream Health
+- **Monitor:** Segment generation freshness (newest segment timestamp)
+- **Alert threshold:** If no new segment in 2x segment duration, encoder may be hung
+- **Recovery:** Restart FFmpeg process with exponential backoff
 
 ## Sources
 
-### Official Documentation
-- [Google Cast API Overview](https://developers.google.com/cast/docs/overview) - HIGH confidence
-- [Google Cast API Reference](https://developers.google.com/cast/docs/reference/) - HIGH confidence
-- [Google Cast Registration](https://developers.google.com/cast/docs/registration) - HIGH confidence
-- [HDMI-CEC Control Service (Android)](https://source.android.com/docs/devices/tv/hdmi-cec) - HIGH confidence
-- [Puppeteer Docker Guide](https://pptr.dev/guides/docker) - HIGH confidence
+### HLS Streaming and Buffer Configuration
+- [stream freezes after 5-6s · Issue #1626 · video-dev/hls.js](https://github.com/video-dev/hls.js/issues/1626) - MEDIUM confidence
+- [HLS Latency Sucks, But Here's How to Fix It (Update)](https://www.wowza.com/blog/hls-latency-sucks-but-heres-how-to-fix-it) - HIGH confidence
+- [MPEG-DASH & HLS segment length for adaptive streaming | Bitmovin](https://bitmovin.com/mpeg-dash-hls-segment-length/) - HIGH confidence
+- [Choosing the Segment Duration for DASH or HLS - Streaming Learning Center](https://streaminglearningcenter.com/learning/choosing-the-optimal-segment-duration.html) - HIGH confidence
+- [Creating A Production Ready Multi Bitrate HLS VOD stream | by Peer5 | Medium](https://medium.com/@peer5/creating-a-production-ready-multi-bitrate-hls-vod-stream-dff1e2f1612c) - HIGH confidence
+- [Using FFmpeg as a HLS streaming server (Part 2) – Enhanced HLS Segmentation | Martin Riedl](https://www.martin-riedl.de/2018/08/24/using-ffmpeg-as-a-hls-streaming-server-part-2/) - MEDIUM confidence
+- [The Complete Guide to HLS Video Streaming Protocol: Principles, Advantages, and Practice (2026 Edition)](https://m3u8-player.net/blog/hls-streaming-protocol-guide-2026/) - MEDIUM confidence
+- [HLS Packaging using FFmpeg - Easy Step-by-Step Tutorial - OTTVerse](https://ottverse.com/hls-packaging-using-ffmpeg-live-vod/) - HIGH confidence
 
-### Home Assistant Ecosystem
-- [Home Assistant Cast Integration](https://www.home-assistant.io/integrations/cast/) - HIGH confidence
-- [Home Assistant Webhook Triggers](https://www.home-assistant.io/docs/automation/trigger/) - HIGH confidence
-- [DashCast Component](https://github.com/AlexxIT/DashCast) - MEDIUM confidence (third-party)
-- [continuously_casting_dashboards](https://github.com/b0mbays/continuously_casting_dashboards) - MEDIUM confidence (community integration)
+### Intel QuickSync Hardware Acceleration
+- [Intel Quick Sync Video - Wikipedia](https://en.wikipedia.org/wiki/Intel_Quick_Sync_Video) - MEDIUM confidence
+- [cloud-computing-quicksync-video-ffmpeg-white-paper.pdf](https://www.intel.com/content/dam/www/public/us/en/documents/white-papers/cloud-computing-quicksync-video-ffmpeg-white-paper.pdf) - HIGH confidence
+- [HandBrake Documentation — Intel Quick Sync Video](https://handbrake.fr/docs/en/latest/technical/video-qsv.html) - HIGH confidence
+- [ffmpeg and hevc_qsv Intel Quick Sync settings | Nelson's log](https://nelsonslog.wordpress.com/2022/08/22/ffmpeg-and-hevc_qsv-intel-quick-sync-settings/) - MEDIUM confidence
+- [Use Intel QuickSync Video hardware acceleration for transcoding video - FFmpeg By Example](https://ffmpegbyexample.com/examples/fpwszeip/use_intel_quicksync_video_hardware_acceleration_for_transcoding_video/) - MEDIUM confidence
+- [Intel QuickSync - Perfect Media Server](https://perfectmediaserver.com/06-hardware/intel-quicksync/) - MEDIUM confidence
 
-### Technical Implementation
-- [pychromecast GitHub](https://github.com/home-assistant-libs/pychromecast) - HIGH confidence (official HA library)
-- [CATT (Cast All The Things)](https://github.com/skorokithakis/catt) - MEDIUM confidence (community tool)
-- [Browserless Chrome Docker](https://hub.docker.com/r/browserless/chrome) - MEDIUM confidence
+### Cast Session Lifecycle and Monitoring
+- [GitHub - home-assistant-libs/pychromecast: Library for Python 3 to communicate with the Google Chromecast.](https://github.com/home-assistant-libs/pychromecast) - HIGH confidence
+- [How can I tell when an app stops casting? · Issue #84 · home-assistant-libs/pychromecast](https://github.com/balloob/pychromecast/issues/84) - MEDIUM confidence
+- [Class: Media | Cast | Google for Developers](https://developers.google.com/cast/docs/reference/web_sender/chrome.cast.media.Media) - HIGH confidence
+- [Media Playback Messages | Cast | Google for Developers](https://developers.google.com/cast/docs/media/messages) - HIGH confidence
+- [[CastPlayer] Detecting media source ended · Issue #4130 · google/ExoPlayer](https://github.com/google/ExoPlayer/issues/4130) - MEDIUM confidence
 
-### Community Insights
-- [Google Nest Hub as Dashboard with DashCast](https://community.home-assistant.io/t/google-nest-hub-as-dashboard-with-dashcast-add-on/460217) - MEDIUM confidence
-- [WTH resolution control request](https://community.home-assistant.io/t/wth-still-not-able-to-set-resolution-when-casting-dashboard-to-uhd-chromecast/481633) - LOW confidence (anecdotal)
-- [Chromecast idle timeout discussions](https://www.googlenestcommunity.com/t5/Streaming/Chromcast-Shutting-Off-While-Inactive/m-p/419552) - LOW confidence (user reports)
+### FFmpeg Process Management and Cleanup
+- [How to gently terminate ffmpeg when called from a service? - Raspberry Pi Forums](https://forums.raspberrypi.com/viewtopic.php?t=284030) - MEDIUM confidence
+- [Orphan Process Handling in Docker - Peter Malmgren](https://petermalmgren.com/orphan-children-handling-containerd/) - MEDIUM confidence
+- [asyncffmpeg · PyPI](https://pypi.org/project/asyncffmpeg/) - HIGH confidence
+- [GitHub - scivision/asyncio-subprocess-ffmpeg: Examples of Python asyncio.subprocess](https://github.com/scivision/asyncio-subprocess-ffmpeg) - HIGH confidence
+- [ffmpeg-progress-yield · PyPI](https://pypi.org/project/ffmpeg-progress-yield/) - MEDIUM confidence
+- [Subprocesses — Python 3.14.2 documentation](https://docs.python.org/3/library/asyncio-subprocess.html) - HIGH confidence
 
-### Protocol Details
-- [Chromecast Protocol Documentation](https://github.com/geraldnilles/Chromecast-Server/blob/master/docs/GoogleCastProtocol.markdown) - MEDIUM confidence (reverse-engineered)
-- [cast-web protocol implementation](https://github.com/cast-web/protocol) - MEDIUM confidence (community implementation)
+### fMP4 Low-Latency Streaming
+- [How Fragmented MP4 Works for Adaptive Streaming - My Framer Site](https://www.simalabs.ai/resources/how-fragmented-mp4-works-for-adaptive-streaming) - MEDIUM confidence
+- [Video Streaming With Ffmpeg. Build your own video streaming service. | by Engineering musings with 'Dunsimi | Jan, 2026 | Medium](https://buildwithdunsimi.medium.com/video-streaming-with-ffmpeg-29fac7e0d514) - MEDIUM confidence
+- [Low-Latency HLS: The Era of Flexible Low-Latency Streaming | by OvenMediaEngine | Medium](https://medium.com/@OvenMediaEngine/low-latency-hls-the-era-of-flexible-low-latency-streaming-ec675aa61378) - HIGH confidence
+- [What is CMAF? A Complete Guide to Efficient Media Streaming](https://www.fastpix.io/blog/cmaf-explained-improve-media-streaming-quality-and-speed) - HIGH confidence
+- [Packaging HTTP Live Streaming with fragmented MP4 (fMP4 HLS) — Unified Streaming](https://docs.unified-streaming.com/documentation/package/fmp4-hls.html) - HIGH confidence
 
 ---
-*Feature research for: Docker service for casting authenticated web dashboards to Android TV via webhooks*
-*Researched: 2026-01-15*
-*Primary use case: Home Assistant automation with webhook control*
+*Feature research for: v2.0 Stability and Hardware Acceleration*
+*Researched: 2026-01-18*
+*Focus: Production HLS streaming stability, QuickSync hardware acceleration, Cast session lifecycle management*

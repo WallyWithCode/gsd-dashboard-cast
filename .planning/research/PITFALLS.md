@@ -1,407 +1,341 @@
-# Pitfalls Research
+# Pitfalls Research: v2.0 Stability and Hardware Acceleration
 
-**Domain:** Web-to-video streaming service with Cast protocol integration
-**Researched:** 2026-01-15
-**Confidence:** HIGH (Cast/Browser), MEDIUM (Video Encoding), HIGH (Infrastructure)
+**Domain:** Web-to-video streaming with Intel QuickSync hardware acceleration
+**Researched:** 2026-01-18
+**Confidence:** HIGH (QuickSync/VAAPI), HIGH (HLS Buffering), MEDIUM (Process Cleanup), HIGH (Proxmox GPU)
 
 ## Critical Pitfalls
 
-### Pitfall 1: Browser Automation Resource Leaks
+### Pitfall 1: HLS Segment Duration vs Buffer Window Mismatch
 
 **What goes wrong:**
-Unclosed browser contexts, orphaned page objects, and zombie Chrome processes accumulate over time, consuming memory and eventually crashing the service. In production, this manifests as gradual memory exhaustion, with "dozens of orphaned Chrome instances" appearing when cleanup fails.
+HLS streams freeze at exactly 6 seconds (the segment duration) because the player expects a minimum buffer of 3 segments (18 seconds) before starting playback, but the playlist only contains 2-3 segments. When the playlist uses `hls_list_size` too small for the segment duration, players stall waiting for enough buffer depth. The stream appears to load but freezes immediately after the first segment completes.
 
 **Why it happens:**
-Developers fail to implement proper cleanup in error paths. When exceptions occur during page operations, `page.close()` and `browser.close()` are never called. Additionally, developers often spin up fresh browser instances per request instead of reusing them, and don't implement proper try/finally blocks.
+Developers set `hls_time` (segment duration) without considering the relationship to `hls_list_size` (playlist depth). Players typically maintain a buffer of 3 segments (18-30 seconds) to prevent playback issues during network fluctuations. With 2-second segments and `hls_list_size=10`, you have 20 seconds of buffer (good). But with 6-second segments and `hls_list_size=3`, you only have 18 seconds and the player may not find the next segment fast enough. The current implementation uses `hls_time=2` with `hls_list_size=10` which should work, but if segment duration increases without adjusting list size, freezes occur.
 
 **How to avoid:**
-1. Use incognito browser contexts instead of managing full browser lifecycles - "the secret weapon for production Puppeteer deployments"
-2. Always wrap operations in try/finally blocks with guaranteed cleanup
-3. Reuse browser instances across requests - don't create a new browser per operation
-4. Implement connection pooling using libraries like `puppeteer-cluster`
-5. Close all pages before calling `browser.close()` to prevent hanging (Windows GPU issue workaround)
-6. Monitor Chrome process count per pod: 2-3 processes = healthy, dozens = leak
+1. Maintain minimum buffer window: `hls_list_size * hls_time >= 18` (at least 3 segments)
+2. For 2-second segments: use `hls_list_size=10` (20s buffer) - CURRENT IMPLEMENTATION
+3. For 6-second segments: use `hls_list_size=5` (30s buffer minimum)
+4. Never reduce `hls_list_size` below 5 for any segment duration
+5. Add `-hls_playlist_type event` to prevent #EXT-X-ENDLIST from appearing (enables indefinite streaming)
+6. Ensure `delete_segments` flag works correctly to prevent disk overflow
+7. Test with actual Cast device player, not just browser HLS.js player (different buffering behavior)
 
 **Warning signs:**
-- Memory usage steadily climbing over hours/days
-- Chrome process count increasing beyond 2-3 per pod
-- Browser.close() hanging or timing out
-- "user data directory is already in use" errors
-- Out of memory crashes after extended runtime
+- Stream plays for exactly N seconds then freezes (where N = segment duration)
+- Player shows buffering spinner after initial playback
+- Cast device displays playback but no new segments load
+- FFmpeg continues encoding but Cast device stops requesting segments
+- Logs show segment creation but no HTTP requests for new segments
 
 **Phase to address:**
-Phase 1 (Browser Automation Foundation) - Must establish proper resource management patterns from the start.
+HLS Buffering Fix Phase (v2.0) - This is the current 6-second freeze issue that needs immediate fixing.
 
 **Confidence:** HIGH
+
 **Sources:**
-- [The Hidden Cost of Headless Browsers: A Puppeteer Memory Leak Journey](https://medium.com/@matveev.dina/the-hidden-cost-of-headless-browsers-a-puppeteer-memory-leak-journey-027e41291367)
-- [Puppeteer in Node.js: Common Mistakes to Avoid](https://blog.appsignal.com/2023/02/08/puppeteer-in-nodejs-common-mistakes-to-avoid.html)
-- [Browser.close() doesn't close Chromium if there are open pages](https://github.com/puppeteer/puppeteer/issues/7922)
-- [Zombie Chrome child processes in containerized EKS environment](https://github.com/SeleniumHQ/selenium/issues/15632)
+- [HLS Latency Sucks, But Here's How to Fix It](https://www.wowza.com/blog/hls-latency-sucks-but-heres-how-to-fix-it)
+- [stream freezes after 5-6s · Issue #1626 · video-dev/hls.js](https://github.com/video-dev/hls.js/issues/1626)
+- [Reducing Latency in HLS Streaming: Key Tips](https://www.fastpix.io/blog/reducing-latency-in-hls-streaming)
 
 ---
 
-### Pitfall 2: Docker /dev/shm Exhaustion
+### Pitfall 2: FFmpeg Process Cleanup Race Conditions
 
 **What goes wrong:**
-Chrome crashes with out-of-memory errors in Docker containers because the default shared memory size (64MB) is far too small for Chrome's needs. This manifests as cryptic crashes, renderer process failures, and intermittent failures under load.
+Multiple FFmpeg processes spawn and never terminate, causing VM lockup. When stopping a stream, if FFmpeg is in the middle of encoding a frame or writing a segment, sending SIGTERM doesn't guarantee immediate termination. The process hangs waiting for I/O completion or encoder flush. Meanwhile, new stream requests spawn additional FFmpeg instances. Without proper process tracking and forced cleanup, orphaned processes accumulate until system resources are exhausted. This manifests as: multiple `ffmpeg` processes visible in `ps aux`, CPU pegged at 100% across all processes, and eventual system unresponsiveness.
 
 **Why it happens:**
-Docker's default `/dev/shm` is only 64MB, but Chrome uses shared memory extensively for inter-process communication. Most developers don't realize Chrome has special shared memory requirements until it crashes in production.
+The current implementation in `encoder.py` uses `process.terminate()` followed by `wait_for(process.wait(), timeout=5.0)` then `process.kill()`. However, race conditions occur when:
+1. **Encoding in progress**: FFmpeg receives SIGTERM while encoding a frame, attempts to flush encoder buffers gracefully, takes >5 seconds, gets SIGKILL, leaves segment files in inconsistent state
+2. **x11grab source disappears**: If Xvfb context exits before FFmpeg, x11grab crashes (FFmpeg bug #7312), causing segfault instead of clean exit
+3. **Segment write mid-operation**: HLS segment is being written when SIGTERM arrives, file lock prevents cleanup, process hangs in uninterruptible sleep
+4. **Child process orphaning**: FFmpeg spawns child processes for filters/encoding that may not receive termination signals
+5. **Context manager ordering**: If `XvfbManager` exits before `FFmpegEncoder`, the video source disappears causing crash
 
 **How to avoid:**
-1. Run containers with `--shm-size=1gb` flag
-2. OR launch Chrome with `--disable-dev-shm-usage` flag (writes to /tmp instead)
-3. Use `--init` flag (Docker >= 1.13.0) or `dumb-init` to properly reap zombie processes
-4. Implement proper process monitoring to detect orphaned Chrome instances
+1. **Graceful stop via stdin 'q' command**: Send 'q\n' to FFmpeg stdin first (graceful stop), wait 2 seconds, then SIGTERM
+2. **Fix context manager nesting order**: Ensure FFmpeg exits BEFORE Xvfb (current code is correct, but verify)
+3. **Track all child processes**: Use process group termination (`os.killpg()`) to kill FFmpeg and its children
+4. **Add process group creation**: Start FFmpeg with `preexec_fn=os.setsid` to create new process group
+5. **Implement process registry**: Track all spawned FFmpeg PIDs globally, cleanup on shutdown/error
+6. **Reduce kill timeout**: Change 5-second timeout to 3 seconds (encoder flush shouldn't take that long)
+7. **Force segment completion**: Use `-hls_flags +temp_file` to write segments to .tmp first, atomically rename on completion
+8. **Monitor zombie processes**: Add health check that counts FFmpeg processes, alert if >1 per active stream
 
 **Warning signs:**
-- Chrome crashes with "out of memory" errors despite plenty of system RAM
-- Renderer process crashes
-- Failures that only appear in Docker but not local development
-- Zombie processes accumulating in containers
+- `ps aux | grep ffmpeg` shows multiple processes when only one stream active
+- CPU usage doesn't drop after stopping stream
+- `top` shows defunct `<ffmpeg>` processes (zombies)
+- Disk shows `.ts.tmp` files that never complete
+- Subsequent stream starts fail with "device or resource busy"
+- VM becomes unresponsive after multiple start/stop cycles
+- Log shows "FFmpeg did not terminate gracefully, forcing kill" repeatedly
 
 **Phase to address:**
-Phase 1 (Browser Automation Foundation) - Critical Docker configuration must be set before deployment.
+Process Cleanup Phase (v2.0) - Critical for production stability and multiple stream scenarios.
 
 **Confidence:** HIGH
+
 **Sources:**
-- [Out of memory errors in Headless Chrome 83](https://bugs.chromium.org/p/chromium/issues/detail?id=1085829)
-- [Advanced issues when managing Chrome on AWS](https://www.browserless.io/blog/advanced-issues-when-managing-chrome-on-aws)
-- [chromedp/docker-headless-shell GitHub](https://github.com/chromedp/docker-headless-shell)
+- [Race condition: We had to kill ffmpeg to stop it · Issue #13 · imageio/imageio-ffmpeg](https://github.com/imageio/imageio-ffmpeg/issues/13)
+- [#7312 (crash while encoding from x11grab when source goes away) – FFmpeg](https://trac.ffmpeg.org/ticket/7312)
+- [Killing an ffmpeg process kills Streamer · Issue #20 · shaka-project/shaka-streamer](https://github.com/google/shaka-streamer/issues/20)
+- [How to gently terminate ffmpeg when called from a service?](https://forums.raspberrypi.com/viewtopic.php?t=284030)
 
 ---
 
-### Pitfall 3: Missing Timeouts in Browser Operations
+### Pitfall 3: Intel QuickSync Driver and Permission Configuration
 
 **What goes wrong:**
-Pages get stuck loading indefinitely due to network issues, infinite rendering loops, or external resource failures. Without timeouts, requests hang forever, keeping Chrome instances alive and blocking other operations. This causes resource exhaustion and application hangs.
+Intel QuickSync hardware acceleration fails with cryptic errors like "Error initializing an internal MFX session: unsupported (-3)", "Failed to initialize VAAPI connection: -1 (generic error)", or "Permission denied" when accessing `/dev/dri/renderD128`. FFmpeg falls back to software encoding, pegging CPU at 100% and defeating the entire purpose of hardware acceleration. In Docker containers, the issue is even more insidious because FFmpeg may silently fall back to software encoding without obvious error messages.
 
 **Why it happens:**
-Developers assume pages will always load successfully and don't anticipate network failures, slow third-party scripts, or rendering loops. The default behavior is to wait indefinitely.
+Multiple configuration layers must align perfectly for QuickSync to work:
+1. **Missing kernel drivers**: i915 kernel module not loaded or wrong version
+2. **Missing userspace drivers**: VAAPI driver not installed (libva-intel-driver for old CPUs, intel-media-va-driver for new)
+3. **Wrong VAAPI driver selected**: FFmpeg tries iHD driver but hardware needs i965 (or vice versa)
+4. **Permission denied on /dev/dri**: User/container not in `render` or `video` group
+5. **Docker GID mismatch**: Host's render group is GID 109, container's is GID 115, device access fails
+6. **CPU generation incompatibility**: Trying to use QuickSync on <4th gen Intel (not supported)
+7. **FFmpeg not built with QSV support**: FFmpeg compiled without `--enable-libmfx` or `--enable-libvpl`
+8. **Proxmox GPU not passed through**: VM doesn't have access to iGPU at all
 
 **How to avoid:**
-1. Set explicit timeouts on all page operations: `page.goto()`, `page.waitForSelector()`, etc.
-2. Implement global timeout policies at the browser context level
-3. Use watchdog timers for long-running operations
-4. Implement circuit breakers for repeatedly failing operations
+1. **Verify CPU generation**: QuickSync requires Intel 4th gen (Haswell) or newer - check `lscpu`
+2. **Check driver loading**: `lsmod | grep i915` should show i915 with use count >1
+3. **Install correct VAAPI driver**:
+   - Intel Gen 8+ (Broadwell+): `apt install intel-media-va-driver` (iHD driver)
+   - Intel Gen <8: `apt install i965-va-driver` (i965 driver)
+4. **Verify VAAPI works**: `vainfo` should show device and supported profiles without errors
+5. **Set driver explicitly**: Add `LIBVA_DRIVER_NAME=iHD` (or `i965`) environment variable if auto-detection fails
+6. **Fix Docker permissions**:
+   - Get host render GID: `getent group render` (e.g., 109)
+   - Add to docker-compose: `group_add: ["109"]` (use numeric GID)
+   - Mount device: `devices: ["/dev/dri:/dev/dri"]`
+7. **Verify FFmpeg QSV support**: `ffmpeg -encoders | grep qsv` should list h264_qsv, hevc_qsv
+8. **Test encoding**: `ffmpeg -f lavfi -i testsrc -c:v h264_vaapi -vaapi_device /dev/dri/renderD128 -t 5 test.mp4`
+9. **Add fallback detection**: If QuickSync init fails, log clear error and fall back to libx264 with warning
 
 **Warning signs:**
-- Operations hanging indefinitely
-- Timeouts only in production, not local testing
-- Resource accumulation during network issues
-- Requests never completing or timing out
+- FFmpeg output shows `[libx264 @ ...]` instead of `[h264_vaapi @ ...]` or `[h264_qsv @ ...]`
+- `vainfo` command fails with "failed to initialize display" or "permission denied"
+- `/dev/dri/` directory doesn't exist or is empty
+- CPU usage at 100% despite attempting hardware encoding
+- Error messages mentioning "MFX session", "VAAPI connection", or "unsupported"
+- Docker container logs show "Operation not permitted" for /dev/dri access
 
 **Phase to address:**
-Phase 1 (Browser Automation Foundation) - Essential for production stability.
+QuickSync Integration Phase (v2.0) - Must be configured correctly before claiming hardware acceleration support.
 
 **Confidence:** HIGH
+
 **Sources:**
-- [Puppeteer vs Playwright Performance Comparison](https://www.skyvern.com/blog/puppeteer-vs-playwright-complete-performance-comparison-2025/)
-- [Pro Tips for Optimizing Web Automation Using Puppeteer](https://www.browserstack.com/guide/optimize-web-automation-with-puppeteer)
+- [quicksync via ffmpeg - VideoHelp Forum](https://forum.videohelp.com/threads/382511-quicksync-via-ffmpeg)
+- [Videos: Fix installation of Intel Quick Sync drivers for hardware transcoding · Issue #2700 · photoprism/photoprism](https://github.com/photoprism/photoprism/issues/2700)
+- [Hardware acceleration doesn't work when the container's (hardcoded) render group's GID doesn't match the host's · Issue #2739 · photoprism/photoprism](https://github.com/photoprism/photoprism/issues/2739)
+- [FFmpeg and oneVPL-intel-gpu (or quicksync) / Arch Linux Forums](https://bbs.archlinux.org/viewtopic.php?id=279799)
+- [Hardware video acceleration - ArchWiki](https://wiki.archlinux.org/title/Hardware_video_acceleration)
 
 ---
 
-### Pitfall 4: Cast Authentication Timing Issues
+### Pitfall 4: Proxmox GPU Passthrough IOMMU Configuration
 
 **What goes wrong:**
-Authentication handshake between sender and receiver fails if system time is misaligned by as little as 10 minutes. Chrome will refuse to stream if receiver authentication fails. This causes connection failures that are difficult to diagnose.
+Intel iGPU is not accessible inside the VM even after Proxmox GPU passthrough is configured. `/dev/dri` doesn't appear in the VM, or attempting to access it fails with errors. This happens because Proxmox GPU passthrough has multiple layers of configuration that must all be correct: BIOS settings, bootloader configuration, IOMMU grouping, and VM hardware settings. Missing any single step means the GPU isn't available to the VM, which then can't access it for Docker containers.
 
 **Why it happens:**
-Cast protocol uses time-based authentication with tight tolerances. System clock drift, VM clock skew, or incorrect timezone configuration causes cryptographic validation to fail.
+Proxmox GPU passthrough requires a complex configuration chain:
+1. **BIOS VT-d disabled**: Intel VT-d (virtualization for directed I/O) must be enabled in BIOS
+2. **IOMMU not enabled in kernel**: Must add `intel_iommu=on` to GRUB bootloader
+3. **IOMMU group conflicts**: iGPU may share IOMMU group with other critical devices, preventing passthrough
+4. **VM not configured for passthrough**: GPU not added to VM in Proxmox web UI
+5. **Exclusive access conflict**: When GPU is passed to VM, neither host nor other VMs can use it
+6. **Driver conflicts in VM**: VM tries to use GPU but doesn't have correct drivers installed
+
+Additionally, there's confusion between **PCI passthrough** (full GPU to VM) and **LXC device mapping** (device node sharing). For Docker containers, you need the VM approach: passthrough GPU to VM via PCI, then mount /dev/dri into Docker container.
 
 **How to avoid:**
-1. Implement NTP time synchronization on all nodes
-2. Monitor clock drift and alert on discrepancies
-3. Validate system time is synchronized during health checks
-4. Document time requirements in deployment procedures
-5. Implement proper error handling for authentication failures
+1. **Enable VT-d in BIOS**: Required for any IOMMU operations
+2. **Configure GRUB for IOMMU**:
+   - Edit `/etc/default/grub`
+   - Add to `GRUB_CMDLINE_LINUX_DEFAULT`: `quiet intel_iommu=on iommu=pt`
+   - Run `update-grub` and reboot Proxmox host
+3. **Verify IOMMU enabled**: `dmesg | grep -e DMAR -e IOMMU` should show "IOMMU enabled"
+4. **Check IOMMU groups**: `find /sys/kernel/iommu_groups/ -type l` to see device groupings
+5. **Verify iGPU has own IOMMU group**: If shared with other devices, passthrough may fail
+6. **Add GPU to VM in Proxmox**:
+   - VM → Hardware → Add → PCI Device
+   - Select Intel iGPU (usually 00:02.0)
+   - Check "All Functions" if available
+   - Check "Primary GPU" only if you want display output (usually NO for headless)
+7. **Inside VM**: Verify `/dev/dri/` exists and contains `card0` and `renderD128`
+8. **Install drivers in VM**: `apt install intel-media-va-driver vainfo`
+9. **Test in VM**: `vainfo` should show Intel device and capabilities
+10. **Then passthrough to Docker**: Add device and group to docker-compose
 
 **Warning signs:**
-- Authentication failures with correct credentials
-- Failures after system has been running for a while
-- Inconsistent failures across different nodes
-- Authentication errors in logs mentioning timestamps
+- Proxmox host shows iGPU in `lspci` but VM doesn't
+- `dmesg | grep IOMMU` shows nothing (IOMMU not enabled)
+- VM shows PCI device but `/dev/dri` doesn't exist
+- `lspci` in VM shows GPU but driver not loaded
+- Attempting `vainfo` in VM fails with "cannot open display"
+- Proxmox web UI doesn't show GPU in available PCI devices for VM
 
 **Phase to address:**
-Phase 2 (Cast Protocol Integration) - Critical for Cast connectivity.
+Proxmox GPU Passthrough Documentation Phase (v2.0) - Prerequisites before QuickSync can work.
 
 **Confidence:** HIGH
+
 **Sources:**
-- [Discovery Troubleshooting - Google Cast Developers](https://developers.google.com/cast/docs/discovery)
-- [Troubleshooting - Cast Android TV Receiver](https://developers.google.com/cast/docs/android_tv_receiver/troubleshooting)
+- [GPU Passthrough with Proxmox: A Practical Guide](https://diymediaserver.com/post/gpu-passthrough-proxmox-quicksync-guide/)
+- [Intel N100/iGPU Passthrough to VM and use with Docker | Proxmox Support Forum](https://forum.proxmox.com/threads/intel-n100-igpu-passthrough-to-vm-and-use-with-docker.140370/)
+- [Quick Sync and iGPU passthrough - Perfect Media Server](https://perfectmediaserver.com/05-advanced/passthrough-igpu-gvtg/)
+- [Intel NUC GPU passthrough in Proxmox 6.1 with Plex and Docker · Jack Cuthbert](https://jackcuthbert.dev/blog/intel-nuc-gpu-passthrough-in-proxmox-plex-docker)
 
 ---
 
-### Pitfall 5: Cast CORS Configuration Errors
+### Pitfall 5: pychromecast Callback Timing and Device-Initiated Stop Detection
 
 **What goes wrong:**
-Media fails to load on Cast receivers with cryptic CORS errors. Streaming protocols use XMLHttpRequest which is guarded by CORS. Wildcards (`*`) cannot be used for `Access-Control-Allow-Origin` with credentials, causing authentication to fail.
+When a user stops casting from the Cast device (TV remote, Google Home app), the application doesn't detect it and FFmpeg continues encoding indefinitely, wasting CPU resources. The stream becomes orphaned: FFmpeg runs, server serves HLS segments, but nobody is watching. Without device-initiated stop detection, the only way to stop encoding is the duration timeout or explicit webhook call. In v1.1, there's no monitoring of Cast session state, so device disconnections are invisible to the application.
 
 **Why it happens:**
-Developers configure CORS for web browsers but don't realize Cast receivers have stricter requirements. Protected media content requires specific domain headers, not wildcards. Required headers include `Content-Type`, `Accept-Encoding`, and `Range` - missing any causes failures.
+The current implementation doesn't register status listeners for Cast session changes. pychromecast provides `MediaStatusListener` and `ConnectionStatusListener` callbacks, but they must be explicitly registered. Without these listeners:
+- DISCONNECTED events are never received
+- IDLE state transitions (when playback stops) are missed
+- Application has no visibility into actual playback state
+- Context manager exits only when Python code explicitly exits the `async with` block
+
+Additionally, pychromecast v14.0.0 introduced breaking changes to callback signatures requiring kwarg-only arguments, and media status listeners don't work correctly with async discovery in some versions.
 
 **How to avoid:**
-1. Never use wildcard `*` for Access-Control-Allow-Origin with Cast
-2. Always include required headers: Content-Type, Accept-Encoding, Range
-3. Configure CORS to allow credentials when needed
-4. Test CORS configuration with actual Cast devices, not just browsers
-5. Use manifest request handlers to inject custom headers
+1. **Register ConnectionStatusListener**: Implement callback for `new_connection_status()` to detect DISCONNECTED
+2. **Register MediaStatusListener**: Implement callback for `new_media_status()` to detect IDLE state
+3. **Use asyncio.Event for stop signaling**: Replace `await asyncio.sleep(float('inf'))` with `stop_event.wait()`
+4. **Set stop_event when DISCONNECTED**: In listener callback, call `stop_event.set()` to break streaming loop
+5. **Handle callback in thread-safe way**: pychromecast callbacks run in different thread, use `loop.call_soon_threadsafe()`
+6. **Test with actual device stop**: Stop casting from TV remote, verify FFmpeg terminates within 5 seconds
+7. **Add reconnection grace period**: Don't stop immediately on DISCONNECTED, wait 10 seconds (may be temporary network blip)
+8. **Log all state transitions**: Debug visibility into what's happening with Cast session
+9. **Check pychromecast version**: Ensure >= 14.0.0 for latest callback APIs, update callback signatures if needed
 
 **Warning signs:**
-- Media loads in browser but fails on Cast device
-- CORS errors in Cast device logs
-- Authentication working but media loading failing
-- Manifest or segment request failures
+- Stopping cast from TV remote doesn't terminate stream
+- FFmpeg continues running after "Cast device disconnected" in logs
+- Multiple orphaned FFmpeg processes accumulate over time
+- CPU usage remains high even when TV shows "Ready to cast" screen
+- Logs show "Session not active" but FFmpeg still running
+- No log messages when stopping playback from device
 
 **Phase to address:**
-Phase 2 (Cast Protocol Integration) - Must be configured correctly for media playback.
+Device-Initiated Stop Detection Phase (v2.0) - Critical for resource management and user experience.
 
-**Confidence:** HIGH
+**Confidence:** MEDIUM (pychromecast callback APIs have version-specific quirks)
+
 **Sources:**
-- [Add Core Features to Your Custom Web Receiver](https://developers.google.com/cast/docs/web_receiver/core_features)
-- [Chromecast receiver with custom header - Issue #23](https://github.com/googlecast/CastReceiver/issues/23)
-- [Chromecast CORS problem - Kaltura Forum](https://forum.kaltura.org/t/chromecast-cors-problem/10301)
+- [More Documentation Needed to Avoid RunTime errors · Issue #560 · home-assistant-libs/pychromecast](https://github.com/home-assistant-libs/pychromecast/issues/560)
+- [Media status listener doesn't work for async discovery · Issue #259 · home-assistant-libs/pychromecast](https://github.com/home-assistant-libs/pychromecast/issues/259)
+- [Release 14.0.0 · home-assistant-libs/pychromecast](https://github.com/home-assistant-libs/pychromecast/releases/tag/14.0.0)
+- [[pychromecast.controllers.media] Exception thrown when calling media status callback · Issue #35780 · home-assistant/core](https://github.com/home-assistant/core/issues/35780)
 
 ---
 
-### Pitfall 6: Cast Connection Discovery Failures
+### Pitfall 6: HLS delete_segments Flag Failures
 
 **What goes wrong:**
-Sender apps fail to discover Cast devices, or connections drop unexpectedly. If other apps consistently discover the receiver but your sender doesn't, the problem is in your sender implementation. Network configuration requires sender and Cast device on same WiFi network.
+HLS `.ts` segment files accumulate on disk despite `hls_flags delete_segments` being set. Over time, `/tmp/streams/` fills with hundreds of orphaned segment files, eventually filling the disk and causing system failures. This is particularly insidious in long-running streams or when streams are stopped abruptly without cleanup. The current implementation uses `-hls_flags delete_segments+append_list` but this can fail on file locking issues, permission problems, or platform-specific bugs.
 
 **Why it happens:**
-Developers don't implement proper discovery protocols or handle network changes. mDNS/SSDP discovery can be blocked by firewalls or network policies. Apps don't handle WiFi network changes or device sleep/wake cycles.
+The `delete_segments` flag has several known failure modes:
+1. **Windows file locking**: On Windows, FFmpeg can't delete segments it's currently reading, "Permission denied" errors
+2. **Race condition in deletion**: FFmpeg tries to delete segment while HTTP server is serving it to Cast device
+3. **Crash without cleanup**: If FFmpeg crashes (e.g., x11grab source disappears), segments never deleted
+4. **Manual termination**: Sending SIGKILL doesn't give FFmpeg chance to run cleanup
+5. **Filesystem permissions**: User running FFmpeg doesn't have write permissions to output directory
+6. **NFS/network filesystems**: Deletion may fail on network-mounted filesystems with stale file handles
+
+Additionally, the current implementation's cleanup in `__aexit__()` only removes `.m3u8` and matching `.ts` files, but if the process crashes before `__aexit__()` runs, files remain forever.
 
 **How to avoid:**
-1. Verify sender and Cast device are on same WiFi network
-2. Implement proper SessionManager listeners for connection state changes
-3. Handle SENDER_DISCONNECTED events with appropriate maxInactivity timeout
-4. Test discovery across different network configurations
-5. Implement retry logic with exponential backoff for failed connections
+1. **Add startup cleanup**: On service start, delete all files in `/tmp/streams/` older than 1 hour
+2. **Use temp_file flag**: Add `-hls_flags +temp_file` to write segments to `.tmp` first, atomic rename prevents serving partial files
+3. **Increase segment list size**: More segments in playlist = more time before deletion needed = fewer race conditions
+4. **Background cleanup task**: Run separate asyncio task that periodically scans `/tmp/streams/` and deletes old segments
+5. **Verify deletion works**: In testing, check that segment count stabilizes (doesn't keep growing)
+6. **Monitor disk usage**: Alert if `/tmp/streams/` exceeds 1GB (indicates cleanup failure)
+7. **Fallback to manual cleanup**: If `delete_segments` fails, implement Python-based cleanup logic
+8. **Use memory-based tmpfs**: Mount `/tmp/streams/` on tmpfs (RAM disk) so OS cleanup handles orphans on reboot
+9. **Test crash scenarios**: Kill FFmpeg with `kill -9`, verify segments eventually get cleaned up
 
 **Warning signs:**
-- Discovery works in some network environments but not others
-- Other Cast apps discover devices but yours doesn't
-- Connections drop when device goes to sleep
-- Discovery fails after WiFi network changes
+- `ls /tmp/streams/*.ts | wc -l` shows hundreds or thousands of files
+- Disk usage of `/tmp/streams/` grows over time
+- FFmpeg logs show "Failed to delete segment" errors
+- After stream stops, old segments remain on disk
+- Service crashes with "No space left on device"
+- HTTP 404 errors for old segments that should have been deleted
 
 **Phase to address:**
-Phase 2 (Cast Protocol Integration) - Core connectivity requirement.
+HLS Buffering Fix Phase (v2.0) - Cleanup issues compound the buffering problems.
 
 **Confidence:** HIGH
+
 **Sources:**
-- [Discovery Troubleshooting - Google Cast Developers](https://developers.google.com/cast/docs/discovery)
-- [Error Codes - Google Cast Developers](https://developers.google.com/cast/docs/web_receiver/error_codes)
+- [-f hls -hls_flags delete_segments broken on windows (locking issue) - FFmpeg](https://ffmpeg.zeranoe.com/forum/viewtopic.php?t=4916)
+- [PATCH] delete the old segment file from hls list](https://ffmpeg-devel.ffmpeg.narkive.com/gAocPWVn/patch-delete-the-old-segment-file-from-hls-list)
+- [HLS files are not deleting from server · Issue #4139 · ant-media/Ant-Media-Server](https://github.com/ant-media/Ant-Media-Server/issues/4139)
 
 ---
 
-### Pitfall 7: FFmpeg Streaming Bandwidth Bottlenecks
+### Pitfall 7: fMP4 Fragmentation Flags for Cast Compatibility
 
 **What goes wrong:**
-CPU usage spikes to 100% when using filters during live streaming, causing frame drops and quality degradation. Streaming sources create bandwidth bottlenecks either server-side or client-side, making transcoding significantly slower than file-based encoding.
+fMP4 low-latency streams fail to play on Cast devices with errors like "Media could not be loaded" or playback starts but stutters/freezes. The Cast device's media player expects specific fragmentation structure in fMP4 files: `moov` box must come first (before any media data), fragments must start with keyframes (`moof` boxes), and base decode times must be set correctly. Without the exact combination of FFmpeg movflags, the generated MP4 doesn't meet Cast's streaming requirements.
 
 **Why it happens:**
-Developers optimize for file encoding (where input is always available) rather than streaming (where input arrives over network). Network delays compound with encoding delays. Filters and complex processing assume infinite buffer availability.
+Fragmented MP4 has strict structural requirements for streaming:
+- **empty_moov**: Metadata (moov box) at beginning with no samples, all media in fragments
+- **frag_keyframe**: Each fragment starts with a keyframe (I-frame), required for seeking
+- **default_base_moof**: Base decode times relative to moof box, not moov (streaming requirement)
+
+The current implementation uses these flags correctly: `-movflags frag_keyframe+empty_moov+default_base_moof`. However, several additional issues can break fMP4 playback:
+1. **Missing keyframe intervals**: Must ensure GOP size matches fragment size
+2. **entry_count not zero**: Per MP4 spec, fragmented files must have entry_count=0 in certain boxes
+3. **Server MIME type**: Must serve with `Content-Type: video/mp4`, not `application/octet-stream`
+4. **Range request support**: Cast devices send `Range:` headers, server must support partial content
+5. **CORS headers**: Fragmented MP4 requires same CORS headers as HLS (Range, Content-Type)
 
 **How to avoid:**
-1. Use hardware acceleration (NVENC for NVIDIA GPUs) when available
-2. Optimize for streaming with low-latency flags: `-tune zerolatency`, `-flags low_delay`
-3. Use `-fflags +nobuffer+flush_packets` to minimize buffering
-4. Set appropriate `-analyzeduration` (default 5 seconds adds latency)
-5. Profile encoding pipeline to identify bottlenecks
-6. Consider distributed architectures for scaling
+1. **Keep existing movflags**: `-movflags frag_keyframe+empty_moov+default_base_moof` is correct
+2. **Ensure GOP alignment**: Fragment duration should align with keyframe interval: `-g <framerate>` for 1-second GOPs
+3. **Add fragment duration**: Consider `-frag_duration <microseconds>` to control fragment size explicitly
+4. **Test with ffprobe**: `ffprobe -show_boxes stream.mp4` should show moov before first moof
+5. **Verify server MIME type**: aiohttp should serve .mp4 with `Content-Type: video/mp4`
+6. **Enable Range support**: Ensure StreamingServer handles `Range:` headers (aiohttp FileResponse does this)
+7. **Test on actual Cast device**: Browser may play broken fMP4 that Cast device rejects
+8. **Check fragment boundaries**: Every moof should have a keyframe, verify with `ffprobe -show_frames`
+9. **Monitor for stuttering**: If playback stutters every N seconds, fragment alignment issue
 
 **Warning signs:**
-- CPU usage at 100% during encoding
-- Frame drops in output
-- Encoding takes longer than input duration (can't keep up)
-- High memory usage with buffering
-- Latency increasing over time
+- fMP4 mode streams show "Media could not be loaded" on Cast device
+- Playback starts but freezes after first fragment
+- Browser plays fine but Cast device fails (MIME type or CORS issue)
+- Cast device shows buffering spinner continuously
+- Logs show Cast device requesting first fragment repeatedly (failing to parse)
+- Switching from fMP4 to HLS mode works (indicates fMP4-specific issue)
 
 **Phase to address:**
-Phase 3 (Video Encoding Pipeline) - Critical for streaming performance.
+fMP4 Validation Phase (v2.0) - Must verify low-latency mode actually works before claiming feature complete.
 
-**Confidence:** HIGH
+**Confidence:** MEDIUM (Cast-specific fMP4 requirements may have undocumented quirks)
+
 **Sources:**
-- [FFmpeg Performance Optimization Guide](https://www.probe.dev/resources/ffmpeg-performance-optimization-guide)
-- [Optimize threading+latency of ffmpeg configuration](https://github.com/blakeblackshear/frigate/issues/5459)
-- [How To Optimize FFmpeg For Fast Video Encoding](https://www.muvi.com/blogs/optimize-ffmpeg-for-fast-video-encoding/)
-
----
-
-### Pitfall 8: HLS Keyframe Misalignment
-
-**What goes wrong:**
-Adaptive bitrate switching fails or causes stuttering/sync issues because keyframes aren't aligned across different quality levels. Segments have inconsistent sizes and keyframes appear at different timestamps in different renditions.
-
-**Why it happens:**
-Developers encode each quality level independently without ensuring keyframes occur at the same timestamps. Default FFmpeg settings allow keyframes at scene changes, causing misalignment. Without `-sc_threshold 0`, GOP sizes vary and keyframes don't align.
-
-**How to avoid:**
-1. Set fixed GOP interval: `-g 48 -keyint_min 48` (for 2-second segments at 24fps)
-2. Force scene change threshold to 0: `-sc_threshold 0` (critical - prevents automatic keyframes)
-3. Use identical encoding parameters across all bitrates except resolution/bitrate
-4. Use `-force_key_frames expr:gte(t,n_forced*N)` to force keyframes every N seconds
-5. NEVER try to realign existing files - re-encode from scratch
-
-**Warning signs:**
-- Stuttering or artifacts when quality switches
-- Segments of varying sizes in different renditions
-- Player showing sync issues during adaptive switching
-- Keyframes at different timestamps across qualities
-
-**Phase to address:**
-Phase 3 (Video Encoding Pipeline) - Essential for adaptive streaming quality.
-
-**Confidence:** HIGH
-**Sources:**
-- [Creating A Production Ready Multi Bitrate HLS VOD stream](https://medium.com/@peer5/creating-a-production-ready-multi-bitrate-hls-vod-stream-dff1e2f1612c)
-- [HLS Packaging using FFmpeg Tutorial](https://ottverse.com/hls-packaging-using-ffmpeg-live-vod/)
-- [Using FFmpeg as a HLS streaming server - Multiple Bitrates](https://www.martin-riedl.de/2018/08/25/using-ffmpeg-as-a-hls-streaming-server-part-3/)
-
----
-
-### Pitfall 9: FFmpeg Low-Latency Configuration Mistakes
-
-**What goes wrong:**
-Streaming latency remains high (10+ seconds) despite targeting low-latency streaming. Default HLS configurations use large segments (6-10 seconds) and excessive buffering, making real-time interaction impossible.
-
-**Why it happens:**
-Developers use default FFmpeg settings optimized for quality and buffering, not latency. The default `analyzeduration` adds 5 seconds of latency. Segment duration defaults to values too large for low-latency streaming. Without `zerolatency` tuning, encoder adds 0.5+ seconds of latency.
-
-**How to avoid:**
-1. Set segment duration to 1-2 seconds: `-hls_time 1`
-2. Use zerolatency tuning: `-tune zerolatency`
-3. Add low-latency flags: `-flags low_delay -fflags +nobuffer+flush_packets`
-4. Set zero mux delays: `-max_delay 0 -muxdelay 0`
-5. Reduce analyzeduration for faster startup
-6. Keyframe interval must be ≤ segment duration (each segment needs ≥1 keyframe)
-7. Target 2-5 seconds for LL-HLS, ~6 seconds minimum for stable HLS
-
-**Warning signs:**
-- End-to-end latency exceeding 10 seconds
-- Buffering delays before playback starts
-- Slow startup time (first frame displayed)
-- Latency increasing over time
-
-**Phase to address:**
-Phase 3 (Video Encoding Pipeline) - Required for real-time streaming experience.
-
-**Confidence:** HIGH
-**Sources:**
-- [Rethinking HLS: Low-Latency Streaming with HLS](https://medium.com/@OvenMediaEngine/rethinking-hls-is-it-possible-to-achieve-low-latency-streaming-with-hls-9d00512b3e61)
-- [FFMpeg Reduced Latency HLS - Tebi.io](https://docs.tebi.io/streaming/ffmpeg_rl_hls.html)
-- [HLS Low Latency: The Ultimate 2025 Guide](https://www.videosdk.live/developer-hub/hls/hls-low-latency)
-- [Achieving Ultra-Low Latency Streaming: Codecs and FFmpeg Examples](https://blog.trixpark.com/achieving-ultra-low-latency-streaming-codecs-and-ffmpeg-examples/)
-
----
-
-### Pitfall 10: Webhook Queue Saturation
-
-**What goes wrong:**
-Sudden influx of webhooks overwhelms server resources (memory, CPU, network), causing slower response times, queue saturation, and eventual system shutdown. Webhook events time out waiting to be added to full queues. Memory exhaustion occurs when broker ingests faster than consumers process.
-
-**Why it happens:**
-Developers handle webhooks synchronously, blocking on database writes or external API calls. No rate limiting or backpressure mechanisms. Retry storms occur when system slows down - producers keep retrying, creating avalanche of traffic. No dead-letter queues for failed processing.
-
-**How to avoid:**
-1. Implement async webhook handling: verify signature → enqueue → respond immediately
-2. Use separate worker pools to process webhook queue
-3. Implement backpressure and rate limiting
-4. Create dead-letter queues for failures
-5. Monitor queue depth and consumer lag
-6. Set up circuit breakers for downstream dependencies
-7. Design for at-least-once delivery (idempotent processing)
-
-**Warning signs:**
-- Webhook response times increasing under load
-- Queue depth growing faster than processing rate
-- Memory usage spiking with webhook bursts
-- Webhook timeout errors from senders
-- Consumer lag metrics increasing
-
-**Phase to address:**
-Phase 4 (Webhook System) - Critical for handling production load.
-
-**Confidence:** HIGH
-**Sources:**
-- [Use queue instead of memory queue in webhook send service](https://github.com/go-gitea/gitea/pull/19390)
-- [A Beginner's Guide To Handling Webhooks](https://www.vessel.dev/blog/a-beginners-guide-to-handling-webhooks-for-integrations-2cfe2)
-- [Webhook Infrastructure Performance Monitoring](https://hookdeck.com/webhooks/guides/webhook-infrastructure-performance-monitoring-scalability-resource)
-- [Webhook events are skipped because the queue is full](https://support.atlassian.com/bitbucket-data-center/kb/webhook-events-are-skipped-because-the-queue-is-full/)
-
----
-
-### Pitfall 11: HDMI CEC Control Conflicts
-
-**What goes wrong:**
-Multiple devices connected via CEC fight for control, causing unwanted input switching, power signals, and device wake/sleep conflicts. Chromecast sends unwanted activation signals, automatically switching TV input. When shutting down one device, other CEC devices immediately wake it back up.
-
-**Why it happens:**
-CEC is not a fully standardized technology with inconsistent implementations across manufacturers. When Chromecast is connected through an AVR/receiver, multiple devices try to control the same endpoints. CEC Auto creates race conditions between Chromecast, TV, and receiver.
-
-**How to avoid:**
-1. Understand that CEC reliability is inherently limited - design for graceful degradation
-2. Implement retry logic for CEC commands
-3. Consider disabling CEC on external devices while keeping it on AVR/TV
-4. Power on source device first, let CEC automatically handle downstream devices
-5. Keep firmware updated on all CEC-enabled devices
-6. Document CEC limitations for users - it's a known problem
-7. Provide manual fallback options when CEC fails
-
-**Warning signs:**
-- Chromecast "stealing" input from other devices
-- Devices waking up when they should stay off
-- Input switching happening automatically when not desired
-- Receiver turning on/off unexpectedly
-- CEC working initially but failing over time
-
-**Phase to address:**
-Phase 5 (HDMI CEC Control) - Set expectations early that CEC is inherently unreliable.
-
-**Confidence:** MEDIUM (CEC is notoriously inconsistent across manufacturers)
-**Sources:**
-- [Chromecast w GTV is sending unwanted HDMI CEC signal](https://www.googlenestcommunity.com/t5/Streaming/Chromecast-w-GTV-is-sending-unwanted-HDMI-CEC-signal/m-p/296407)
-- [2020 Chromecast with Google TV - CEC issues](https://www.avsforum.com/threads/2020-chromecast-with-google-tv-cec-issues.3171135/)
-- [HDMI-CEC problems](https://www.avforums.com/threads/hdmi-cec-problems.2335412/)
-
----
-
-### Pitfall 12: Cast Session Expiration Handling
-
-**What goes wrong:**
-Media sessions expire or disconnect, and the application fails to reconnect gracefully. Users lose playback state and must manually restart casting. Session state is lost across app restarts or network interruptions.
-
-**Why it happens:**
-Developers don't implement proper session monitoring and reconnection logic. The framework provides automatic reconnection, but apps override or disable it. maxInactivity timeouts aren't configured appropriately. Session state preservation is missing for stream transfer scenarios.
-
-**How to avoid:**
-1. Let the framework handle automatic session resumption (SessionManager/GCKSessionManager)
-2. Register SessionManagerListener callbacks to handle state transitions
-3. Monitor session status changes: connection, suspension, disconnection
-4. Implement ReconnectionService (Android) - enabled by default, don't disable
-5. For Web: use `requestSessionById(sessionId)` to rejoin existing sessions
-6. Configure appropriate maxInactivity timeout (default is usually correct)
-7. Implement SESSION_STATE and RESUME_SESSION interceptors for custom state preservation
-8. Handle "suspended" state during temporary network loss
-
-**Warning signs:**
-- Users losing playback when app backgrounds
-- Sessions not resuming after network interruption
-- State lost across app restarts
-- SENDER_DISCONNECTED events not handled
-- Reconnection attempts failing
-
-**Phase to address:**
-Phase 2 (Cast Protocol Integration) - Essential for production-quality Cast experience.
-
-**Confidence:** HIGH
-**Sources:**
-- [Add Core Features to Your Custom Web Receiver](https://developers.google.com/cast/docs/web_receiver/core_features)
-- [Integrate Cast Into Your Android App](https://developers.google.com/cast/docs/android_sender/integrate)
-- [GCKSessionManager Class Reference](https://developers.google.com/cast/docs/reference/ios/interface_g_c_k_session_manager)
-- [Unable to resume the chromecast session - Issue #344](https://github.com/react-native-google-cast/react-native-google-cast/issues/344)
+- [In-browser live video using Fragmented MP4 | by Vlad Poberezhny | Medium](https://medium.com/@vlad.pbr/in-browser-live-video-using-fragmented-mp4-3aedb600a07e)
+- [How Fragmented MP4 Works for Adaptive Streaming](https://www.simalabs.ai/resources/how-fragmented-mp4-works-for-adaptive-streaming)
+- [1077264 - Fragmented MP4 generated by mp4fragment utility do not play](https://bugzilla.mozilla.org/show_bug.cgi?id=1077264)
 
 ---
 
@@ -411,16 +345,16 @@ Shortcuts that seem reasonable but create long-term problems.
 
 | Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
 |----------|-------------------|----------------|-----------------|
-| Creating new browser instance per request | Simpler code, no state management | Memory leaks, poor performance, resource exhaustion | Never - always use pooling/contexts |
-| Using wildcard CORS headers | Works in development | Breaks Cast authentication, security risks | Never for production Cast apps |
-| Synchronous webhook processing | Simple implementation | Queue saturation, poor scalability, cascading failures | Only for MVP with <10 webhooks/hour |
-| Skipping FFmpeg zerolatency tuning | Slightly better quality | 10+ seconds latency, poor UX | Only for non-interactive VOD content |
-| Default Docker shared memory | No configuration needed | Random Chrome crashes under load | Never - always set --shm-size=1gb |
-| Manual resource cleanup (no try/finally) | Saves 2 lines of code | Memory leaks, zombie processes | Never - cleanup must be guaranteed |
-| Using scene-change keyframes | Better compression | Breaks adaptive bitrate switching | Never for ABR streaming |
-| Ignoring CEC timing issues | Simpler state machine | Unreliable control, user frustration | Document limitations but implement retries |
-| Hardcoding segment duration | Quick implementation | Inflexible latency/quality tradeoff | Only for fixed-use-case prototypes |
-| Not monitoring Chrome process count | Less infrastructure | Can't detect leaks until crash | Never for production deployment |
+| Using libx264 instead of h264_vaapi during development | Works everywhere, no driver config | 100% CPU usage, can't scale to multiple streams | Only for initial development, never production |
+| Ignoring segment cleanup failures | Simple implementation | Disk fills, system crashes | Never - must implement fallback cleanup |
+| Not monitoring Cast session state | Simpler code, fewer callbacks | Orphaned FFmpeg processes, wasted resources | Never for production - critical resource leak |
+| Hardcoding render group GID in Dockerfile | Works on your system | Breaks on other hosts with different GID | Never - always use dynamic GID or privileged mode |
+| Using `-hls_time 6` instead of 2 | Better compression efficiency | 18-30s latency, freezing issues | Only for non-interactive VOD content |
+| Skipping IOMMU configuration in Proxmox | Easier VM setup | Hardware acceleration never works | Never if planning to use QuickSync |
+| Not implementing process group termination | Simpler subprocess code | Orphaned child processes, zombie FFmpeg | Never - process cleanup must be bulletproof |
+| Using LIBVA_DRIVER_NAME=iHD without testing | Works on newest hardware | Fails on older CPUs, silent fallback to software | Only if you control deployment hardware exactly |
+| Skipping vainfo verification in health checks | One less dependency | QuickSync silently fails, no monitoring visibility | Never for production claiming HW acceleration |
+| Using asyncio.sleep(float('inf')) for indefinite streaming | Simplest possible implementation | Can't detect device-initiated stops | Only for MVP with manual stop via webhook |
 
 ## Integration Gotchas
 
@@ -428,16 +362,16 @@ Common mistakes when connecting to external services.
 
 | Integration | Common Mistake | Correct Approach |
 |-------------|----------------|------------------|
-| Google Cast Protocol | Assuming browser CORS rules apply | Use specific domains, include Range/Accept-Encoding headers, test on actual devices |
-| FFmpeg Streaming | Using file-encoding flags for streaming | Use `-tune zerolatency -flags low_delay -fflags +nobuffer+flush_packets` |
-| Docker + Chrome | Using default shared memory | Set `--shm-size=1gb` or `--disable-dev-shm-usage` flag |
-| Puppeteer/Playwright | Managing browser instances per request | Use incognito contexts within persistent browser instance |
-| HLS Adaptive Streaming | Independent encoding per quality | Enforce identical GOP structure with `-sc_threshold 0` |
-| Cast Session Management | Implementing custom reconnection logic | Use framework's built-in SessionManager automatic reconnection |
-| Webhook Processing | Synchronous handler with DB operations | Async pattern: verify → enqueue → immediate response |
-| HDMI CEC | Expecting reliable control | Design for graceful degradation, implement retries, provide manual fallbacks |
-| FFmpeg Low Latency | Reducing only segment size | Must also tune keyframe interval, analyzeduration, encoder preset |
-| Cast Authentication | Ignoring system clock | Implement NTP sync, validate time in health checks |
+| Intel QuickSync VAAPI | Assuming iHD driver works on all Intel CPUs | Check CPU generation: Gen 8+ uses iHD, older uses i965, set LIBVA_DRIVER_NAME explicitly |
+| Docker /dev/dri permissions | Mounting device without group membership | Get host render GID with `getent group render`, add to container with `group_add: ["<GID>"]` |
+| Proxmox GPU passthrough | Assuming GPU is available after adding to VM | Must enable VT-d in BIOS, enable IOMMU in GRUB, verify iGPU has own IOMMU group |
+| pychromecast session monitoring | Relying on context manager for cleanup | Must register MediaStatusListener and ConnectionStatusListener for device-initiated events |
+| FFmpeg process termination | Using only SIGTERM | Send 'q' to stdin first, then SIGTERM, then SIGKILL with timeouts between each |
+| HLS segment cleanup | Relying only on delete_segments flag | Implement startup cleanup task and background cleanup for orphaned files |
+| fMP4 streaming to Cast | Using default MP4 muxer settings | Must use exact flags: frag_keyframe+empty_moov+default_base_moof |
+| FFmpeg x11grab with context managers | Exiting Xvfb before FFmpeg | Always ensure FFmpeg exits BEFORE Xvfb to prevent segfault (bug #7312) |
+| HLS buffer configuration | Setting hls_time without considering hls_list_size | Maintain buffer window: hls_list_size * hls_time >= 18 seconds |
+| VAAPI encoder testing | Testing only with ffmpeg command line | Must test full pipeline: encode → serve → Cast device playback (different requirements) |
 
 ## Performance Traps
 
@@ -445,16 +379,16 @@ Patterns that work at small scale but fail as usage grows.
 
 | Trap | Symptoms | Prevention | When It Breaks |
 |------|----------|------------|----------------|
-| No browser instance pooling | Memory grows linearly with requests | Use incognito contexts, reuse browser instances | ~100 concurrent requests |
-| Synchronous webhook handling | Response times increase under load | Async queue-based processing | ~50 webhooks/minute |
-| Missing FFmpeg hardware acceleration | CPU at 100%, frame drops | Enable NVENC/VAAPI when available | 2+ concurrent HD streams |
-| Large FFmpeg segment buffers | Memory usage spikes | Use `-fflags +nobuffer+flush_packets` | Multiple concurrent encodes |
-| No Chrome process monitoring | Gradual memory leak | Alert on >3 Chrome processes per pod | After hours/days runtime |
-| Single-threaded encoding | Can't use multiple cores | Use `-threads N` appropriate for CPU | HD+ video at high quality |
-| Missing backpressure in queues | Memory exhaustion | Implement queue depth limits and rejection | Traffic bursts >10x normal |
-| No connection pooling | Socket exhaustion | Reuse connections to external services | ~1000 requests/minute |
-| Unbounded retry storms | Cascading failures | Exponential backoff, circuit breakers | Service degradation |
-| Missing webhook idempotency | Duplicate processing | Design for at-least-once delivery | Retry storms |
+| Software encoding with libx264 | CPU at 100% for single stream | Enable QuickSync/VAAPI hardware acceleration | 2 concurrent streams = VM lockup |
+| No FFmpeg process monitoring | Gradual resource exhaustion | Track PIDs globally, alert if count > active streams | After 5-10 start/stop cycles |
+| Synchronous FFmpeg termination | Stop requests take 5+ seconds | Send 'q' to stdin for instant graceful stop | When stopping multiple streams |
+| HLS segment accumulation | Disk usage grows over time | Implement background cleanup task checking /tmp/streams/ | After 24 hours runtime |
+| Single-threaded encoding | Can't utilize multiple CPU cores | Use `-threads <N>` for software encoding (hardware uses GPU) | HD+ streams with CPU encoding |
+| No segment file limits | Infinite .ts files created | Set `-hls_list_size` and enable `delete_segments` | Long-running streams >1 hour |
+| Missing process group cleanup | Orphaned child processes | Start FFmpeg with `preexec_fn=os.setsid`, kill with `os.killpg()` | After crashes or force kills |
+| Cast session without timeout | Sessions never expire | Implement inactivity timeout and session monitoring | After device disconnects |
+| Not using temp_file flag | Serving partial/corrupt segments | Add `-hls_flags +temp_file` for atomic segment writes | Under network load/latency |
+| Single VAAPI device assumption | Fails when /dev/dri has multiple devices | Explicitly specify `-vaapi_device /dev/dri/renderD128` | Multi-GPU systems |
 
 ## Security Mistakes
 
@@ -462,16 +396,16 @@ Domain-specific security issues beyond general web security.
 
 | Mistake | Risk | Prevention |
 |---------|------|------------|
-| Wildcard CORS with credentials | Authentication bypass on Cast | Use specific origin domains, never `*` with credentials |
-| Exposing webhook URLs without verification | Fake/malicious webhooks | Always verify webhook signatures before processing |
-| Running Chrome without sandboxing | Container escape, privilege escalation | Use `--no-sandbox` only when absolutely necessary, document risk |
-| Storing Cast session IDs in logs | Session hijacking | Sanitize logs, use secure session management |
-| Not rate-limiting webhook endpoints | DoS, resource exhaustion | Implement rate limiting at multiple levels (IP, signature, queue) |
-| Trusting client-provided URLs | SSRF attacks via browser automation | Validate/whitelist URLs before automation |
-| Exposing FFmpeg input paths | File system access, info disclosure | Validate input paths, use chroot/containers |
-| Missing authentication on Cast receivers | Unauthorized casting, content injection | Implement proper sender authentication |
-| Leaking Chrome debugging ports | Remote browser control | Bind debugging to localhost only, firewall properly |
-| Not sanitizing webhook payloads | Injection attacks | Validate and sanitize all webhook data |
+| Running Docker privileged for /dev/dri access | Container escape, full host access | Use device mapping + group_add instead of privileged mode |
+| Not validating VAAPI device availability | Exposing system information via errors | Check vainfo in health checks, sanitize driver errors in API responses |
+| Serving /tmp/streams/ directory directly | Directory traversal, accessing arbitrary files | Use explicit file serving, never serve parent directory |
+| Leaving debug FFmpeg logs in production | Exposing stream URLs, device IPs, auth tokens | Disable FFmpeg stderr logging or sanitize output |
+| Not rate-limiting stream start requests | Resource exhaustion DoS | Limit concurrent streams, add rate limiting per IP |
+| Exposing Proxmox GPU passthrough to multiple VMs | VM escape via GPU vulnerability | Pass iGPU to single trusted VM only |
+| Using world-readable /dev/dri permissions (0666) | Any process can use GPU | Use proper group membership, mode 0660 |
+| Not sanitizing Cast device names | Log injection attacks | Sanitize device names before logging |
+| Allowing arbitrary segment durations | Disk filling attack with huge segments | Limit hls_time to reasonable range (1-10 seconds) |
+| Exposing FFmpeg version in errors | Information disclosure for exploit targeting | Sanitize FFmpeg errors, don't expose version to API |
 
 ## UX Pitfalls
 
@@ -479,33 +413,33 @@ Common user experience mistakes in this domain.
 
 | Pitfall | User Impact | Better Approach |
 |---------|-------------|-----------------|
-| No feedback during encoding | Users think system is frozen | Stream progress updates, show encoding status |
-| No graceful degradation when CEC fails | Users frustrated with unreliable control | Provide manual fallback controls, clear status |
-| Long startup latency | Users wait 10+ seconds for playback | Optimize for low-latency with proper FFmpeg flags |
-| Cast session lost without warning | Playback stops unexpectedly | Implement reconnection with user notification |
-| No error messages on Cast failure | Users don't know what went wrong | Surface Cast errors with actionable messages |
-| Webhook failures invisible | Users unaware system isn't working | Status dashboard, webhook delivery confirmations |
-| Quality switching causes buffering | Stuttering playback experience | Ensure keyframe alignment for smooth ABR switching |
-| No timeout feedback | Operations hang indefinitely | Show timeout warnings, allow cancellation |
-| Cast device not discoverable | Users can't figure out connection | Clear discovery status, troubleshooting hints |
-| Memory leak causes gradual slowdown | Performance degrades mysteriously | Monitor and restart before problems visible |
+| No feedback when QuickSync unavailable | User expects HW acceleration but gets CPU pegging | Log clear warning "QuickSync not available, using software encoding", expose in /status endpoint |
+| Stream continues after device stop | Wasted resources, confusion why CPU still high | Implement device-initiated stop detection, show active streams in status |
+| No indication of HLS vs fMP4 mode | User doesn't know which latency to expect | Include mode in /status response, log mode selection clearly |
+| Silent fallback to software encoding | User thinks they have HW accel but don't | Fail loudly if QuickSync requested but unavailable, require explicit fallback |
+| Orphaned segments filling disk | System failure with no warning | Monitor disk usage, expose in health check, alert before critical |
+| FFmpeg process not stopping | User calls /stop but encoding continues | Implement timeout for stop operation, expose error if cleanup fails |
+| No visibility into GPU usage | Can't tell if hardware acceleration working | Add GPU utilization to /status endpoint (from intel_gpu_top or similar) |
+| 6-second freeze looks like network issue | User blames WiFi instead of config | Fix HLS buffering, add player-side buffering metrics to logs |
+| No indication of Proxmox passthrough status | User doesn't know if GPU is available to VM | Add /dev/dri device check to health endpoint, fail startup if missing and QSV required |
+| Cast device disconnect looks like error | User doesn't know if they stopped it or system crashed | Distinguish device-initiated stop vs error in logs and status |
 
 ## "Looks Done But Isn't" Checklist
 
 Things that appear complete but are missing critical pieces.
 
-- [ ] **Browser Automation:** Often missing try/finally cleanup — verify zombie Chrome processes don't accumulate over 24 hours
-- [ ] **Docker Chrome Setup:** Often missing --shm-size config — verify Chrome doesn't crash under load with default 64MB
-- [ ] **FFmpeg Encoding:** Often missing zerolatency tuning — verify actual end-to-end latency with stopwatch
-- [ ] **HLS Adaptive Streaming:** Often missing sc_threshold 0 — verify keyframes align across qualities with ffprobe
-- [ ] **Webhook Handling:** Often missing async queue processing — verify system handles 10x traffic burst
-- [ ] **Cast CORS:** Often using wildcards — verify media loads on actual Cast device, not just browser
-- [ ] **Resource Monitoring:** Often missing Chrome process counting — verify alerts trigger on process leaks
-- [ ] **Timeout Configuration:** Often missing on page operations — verify hung pages don't block system
-- [ ] **Session Reconnection:** Often disabled framework auto-reconnect — verify session survives network interruption
-- [ ] **CEC Control:** Often assuming reliability — verify graceful fallback when CEC fails
-- [ ] **Error Handling:** Often missing error paths in cleanup — verify resources freed even when exceptions occur
-- [ ] **Dead Letter Queues:** Often missing for webhooks — verify failed webhooks don't disappear silently
+- [ ] **QuickSync Integration:** Often missing driver verification — run `vainfo` in health check and fail if QuickSync expected but unavailable
+- [ ] **Docker /dev/dri Access:** Often using wrong GID — verify render group GID matches host with `getent group render` inside container
+- [ ] **FFmpeg Process Cleanup:** Often only using SIGTERM — verify zombie processes don't accumulate with `ps aux | grep ffmpeg` after 10 start/stop cycles
+- [ ] **HLS Segment Deletion:** Often relying only on delete_segments flag — verify `/tmp/streams/` doesn't grow over time with long-running stream
+- [ ] **Device-Initiated Stop:** Often missing session listeners — stop cast from TV remote, verify FFmpeg terminates within 10 seconds
+- [ ] **fMP4 Validation:** Often only tested in browser — test actual fMP4 playback on Cast device, not just Chrome
+- [ ] **Proxmox IOMMU:** Often missing bootloader config — verify `dmesg | grep IOMMU` shows enabled before claiming GPU passthrough works
+- [ ] **Context Manager Ordering:** Often exits Xvfb before FFmpeg — verify FFmpeg __aexit__ called before XvfbManager __aexit__ (no x11grab crash)
+- [ ] **VAAPI Driver Selection:** Often assumes auto-detection works — explicitly set LIBVA_DRIVER_NAME and verify with vainfo
+- [ ] **Process Group Termination:** Often only kills parent FFmpeg — verify no orphaned child processes with `pstree -p <ffmpeg_pid>` before kill
+- [ ] **HLS Buffer Window:** Often sets hls_time without checking hls_list_size — verify `hls_list_size * hls_time >= 18` in config
+- [ ] **Segment Cleanup on Crash:** Often only cleans in __aexit__ — verify startup cleanup removes old segments from previous crashed instances
 
 ## Recovery Strategies
 
@@ -513,18 +447,18 @@ When pitfalls occur despite prevention, how to recover.
 
 | Pitfall | Recovery Cost | Recovery Steps |
 |---------|---------------|----------------|
-| Browser resource leaks | LOW | Restart service, implement process monitoring to catch early, add automated restarts |
-| Docker /dev/shm exhaustion | LOW | Update Docker config with --shm-size=1gb, restart containers |
-| Missing timeouts | LOW | Add timeout wrappers to existing operations, no major refactoring needed |
-| Cast authentication timing | LOW | Configure NTP sync, restart services, verify time with `date` command |
-| CORS misconfiguration | LOW | Update CORS headers to specific domains, redeploy receiver |
-| HLS keyframe misalignment | HIGH | Must re-encode all video assets from scratch with proper flags |
-| Webhook queue saturation | MEDIUM | Scale consumers, implement backpressure, may require architecture changes |
-| FFmpeg latency issues | MEDIUM | Reconfigure encoding pipeline, may need to regenerate content |
-| Cast session handling | MEDIUM | Refactor to use framework SessionManager, test reconnection scenarios |
-| CEC conflicts | MEDIUM | Document workarounds, provide manual controls, can't fully "fix" CEC |
-| Zombie Chrome processes | LOW | Implement init system, add process cleanup, restart pods |
-| Security issues (CORS wildcard) | LOW | Update configuration, redeploy, verify with testing |
+| HLS 6-second freeze | LOW | Increase hls_list_size from 10 to 15, test with actual Cast device, verify no freezing |
+| Multiple FFmpeg processes | LOW | Kill all: `pkill -9 ffmpeg`, restart service, implement process monitoring |
+| QuickSync driver missing | MEDIUM | Install intel-media-va-driver, verify with vainfo, restart Docker container |
+| Docker render GID mismatch | LOW | Get host GID: `getent group render`, update docker-compose group_add, recreate container |
+| Proxmox IOMMU not enabled | MEDIUM | Edit /etc/default/grub, add intel_iommu=on, update-grub, reboot host (downtime required) |
+| Orphaned HLS segments | LOW | Manual cleanup: `rm /tmp/streams/*.ts`, implement background cleanup task |
+| pychromecast no disconnect detection | MEDIUM | Add MediaStatusListener and ConnectionStatusListener, implement asyncio.Event stop signal |
+| FFmpeg process won't terminate | LOW | Use `kill -9 <pid>`, implement stdin 'q' command for graceful stop |
+| fMP4 playback fails | LOW | Verify movflags in ffmpeg command, test with ffprobe, check server MIME type |
+| x11grab crash on stop | MEDIUM | Fix context manager nesting order, ensure FFmpeg exits before Xvfb |
+| VAAPI wrong driver (iHD vs i965) | LOW | Set LIBVA_DRIVER_NAME environment variable explicitly, restart container |
+| GPU not visible in VM | HIGH | Verify IOMMU groups, reconfigure Proxmox VM hardware, may need host reboot |
 
 ## Pitfall-to-Phase Mapping
 
@@ -532,71 +466,67 @@ How roadmap phases should address these pitfalls.
 
 | Pitfall | Prevention Phase | Verification |
 |---------|------------------|--------------|
-| Browser resource leaks | Phase 1 (Browser Automation) | Monitor Chrome process count, run 24hr load test |
-| Docker /dev/shm exhaustion | Phase 1 (Browser Automation) | Verify --shm-size in Docker config, test under load |
-| Missing timeouts | Phase 1 (Browser Automation) | Verify all page operations have explicit timeouts |
-| Cast authentication timing | Phase 2 (Cast Protocol) | Verify NTP configured, test with clock skew |
-| CORS misconfiguration | Phase 2 (Cast Protocol) | Test media loading on actual Cast device |
-| Cast connection discovery | Phase 2 (Cast Protocol) | Test discovery across different networks |
-| Cast session handling | Phase 2 (Cast Protocol) | Test reconnection after network interruption |
-| FFmpeg bandwidth bottlenecks | Phase 3 (Video Encoding) | Monitor CPU usage, verify real-time encoding |
-| HLS keyframe misalignment | Phase 3 (Video Encoding) | Verify with ffprobe that keyframes align |
-| FFmpeg low-latency config | Phase 3 (Video Encoding) | Measure end-to-end latency with stopwatch |
-| Webhook queue saturation | Phase 4 (Webhook System) | Load test with 10x expected traffic |
-| HDMI CEC conflicts | Phase 5 (HDMI CEC Control) | Test with multiple devices, verify fallbacks |
+| HLS 6-second freeze | HLS Buffering Fix | Test stream for 5+ minutes, verify no freezing on Cast device |
+| FFmpeg process cleanup race | Process Cleanup | Kill stream 10 times, verify `ps aux \| grep ffmpeg` shows 0 processes |
+| QuickSync driver/permissions | QuickSync Integration | Run vainfo in container, verify device access, encode test video |
+| Proxmox IOMMU configuration | Proxmox GPU Passthrough Docs | Verify /dev/dri in VM, dmesg shows IOMMU enabled |
+| pychromecast disconnect detection | Device-Initiated Stop | Stop from TV remote, verify FFmpeg terminates within 10s |
+| HLS segment cleanup failures | HLS Buffering Fix | Run stream for 1 hour, verify /tmp/streams/ size stable |
+| fMP4 fragmentation issues | fMP4 Validation | Test fMP4 mode on Cast device, verify no stuttering/freezing |
+| FFmpeg x11grab crash | Process Cleanup | Verify context manager ordering, test forced Xvfb termination |
+| VAAPI driver selection | QuickSync Integration | Test both iHD and i965, verify correct driver loads |
+| Process group orphaning | Process Cleanup | Check pstree after FFmpeg kill, verify no orphaned children |
+| Docker render GID mismatch | QuickSync Integration | Test on fresh system, verify /dev/dri access without privileged |
+| HLS buffer window too small | HLS Buffering Fix | Calculate hls_list_size * hls_time >= 18, adjust if needed |
 
 ## Sources
 
-### Cast Protocol & Chromecast
-- [Google Cast Developers - Discovery Troubleshooting](https://developers.google.com/cast/docs/discovery)
-- [Google Cast Developers - Error Codes](https://developers.google.com/cast/docs/web_receiver/error_codes)
-- [Google Cast Developers - Add Core Features to Your Custom Web Receiver](https://developers.google.com/cast/docs/web_receiver/core_features)
-- [Google Cast Developers - Integrate Cast Into Your Android App](https://developers.google.com/cast/docs/android_sender/integrate)
-- [GitHub - googlecast/CastReceiver Issue #23: Chromecast receiver with custom header](https://github.com/googlecast/CastReceiver/issues/23)
-- [Kaltura Forum - Chromecast CORS problem](https://forum.kaltura.org/t/chromecast-cors-problem/10301)
-- [GitHub - react-native-google-cast Issue #344: Unable to resume the chromecast session](https://github.com/react-native-google-cast/react-native-google-cast/issues/344)
+### Intel QuickSync / VAAPI
+- [quicksync via ffmpeg - VideoHelp Forum](https://forum.videohelp.com/threads/382511-quicksync-via-ffmpeg)
+- [Videos: Fix installation of Intel Quick Sync drivers for hardware transcoding · Issue #2700 · photoprism/photoprism](https://github.com/photoprism/photoprism/issues/2700)
+- [FFmpeg and oneVPL-intel-gpu (or quicksync) / Arch Linux Forums](https://bbs.archlinux.org/viewtopic.php?id=279799)
+- [Hardware video acceleration - ArchWiki](https://wiki.archlinux.org/title/Hardware_video_acceleration)
+- [HardwareVideoAcceleration - Debian Wiki](https://wiki.debian.org/HardwareVideoAcceleration)
+- [i965 vs iHD driver · Issue #801 · intel/media-driver](https://github.com/intel/media-driver/issues/801)
 
-### Browser Automation (Puppeteer/Playwright)
-- [Medium - The Hidden Cost of Headless Browsers: A Puppeteer Memory Leak Journey](https://medium.com/@matveev.dina/the-hidden-cost-of-headless-browsers-a-puppeteer-memory-leak-journey-027e41291367)
-- [AppSignal Blog - Puppeteer in Node.js: Common Mistakes to Avoid](https://blog.appsignal.com/2023/02/08/puppeteer-in-nodejs-common-mistakes-to-avoid.html)
-- [GitHub - puppeteer/puppeteer Issue #7922: Browser.close() doesn't close Chromium if there are open pages](https://github.com/puppeteer/puppeteer/issues/7922)
-- [GitHub - puppeteer/puppeteer Issue #11627: Closing browser contexts can leave dangling service workers](https://github.com/puppeteer/puppeteer/issues/11627)
-- [Puppeteer vs Playwright Performance Comparison 2025](https://www.skyvern.com/blog/puppeteer-vs-playwright-complete-performance-comparison-2025/)
-- [BrowserStack - Pro Tips for Optimizing Web Automation Using Puppeteer](https://www.browserstack.com/guide/optimize-web-automation-with-puppeteer)
-- [Browserless - Memory Leak: How to Find, Fix & Prevent Them](https://www.browserless.io/blog/memory-leak-how-to-find-fix-prevent-them)
+### Docker /dev/dri Permissions
+- [Hardware acceleration doesn't work when the container's (hardcoded) render group's GID doesn't match the host's · Issue #2739 · photoprism/photoprism](https://github.com/photoprism/photoprism/issues/2739)
+- [Access to /dev/dri/renderD128 fails in immich-server docker container · Discussion #13563](https://github.com/immich-app/immich/discussions/13563)
+- [Incorrect permissions for /dev/dri · Issue #207 · linuxserver/docker-plex](https://github.com/linuxserver/docker-plex/issues/207)
+- [/dev/dri/renderD128 now owned by "render" group, plex missing permission · Issue #211 · linuxserver/docker-plex](https://github.com/linuxserver/docker-plex/issues/211)
 
-### Docker + Headless Chrome
-- [Chromium Bugs - Out of memory errors in Headless Chrome 83](https://bugs.chromium.org/p/chromium/issues/detail?id=1085829)
-- [Browserless - Advanced issues when managing Chrome on AWS](https://www.browserless.io/blog/advanced-issues-when-managing-chrome-on-aws)
-- [GitHub - chromedp/docker-headless-shell](https://github.com/chromedp/docker-headless-shell)
-- [GitHub - SeleniumHQ/selenium Issue #15632: Zombie Chrome child processes in containerized EKS environment](https://github.com/SeleniumHQ/selenium/issues/15632)
+### HLS Buffering and Segment Issues
+- [HLS Latency Sucks, But Here's How to Fix It](https://www.wowza.com/blog/hls-latency-sucks-but-heres-how-to-fix-it)
+- [stream freezes after 5-6s · Issue #1626 · video-dev/hls.js](https://github.com/video-dev/hls.js/issues/1626)
+- [Reducing Latency in HLS Streaming: Key Tips](https://www.fastpix.io/blog/reducing-latency-in-hls-streaming)
+- [HLS Packaging using FFmpeg - Easy Step-by-Step Tutorial - OTTVerse](https://ottverse.com/hls-packaging-using-ffmpeg-live-vod/)
+- [-f hls -hls_flags delete_segments broken on windows (locking issue) - FFmpeg](https://ffmpeg.zeranoe.com/forum/viewtopic.php?t=4916)
+- [[PATCH] delete the old segment file from hls list](https://ffmpeg-devel.ffmpeg.narkive.com/gAocPWVn/patch-delete-the-old-segment-file-from-hls-list)
 
-### FFmpeg & Video Encoding
-- [Probe.dev - FFmpeg Performance Optimization Guide](https://www.probe.dev/resources/ffmpeg-performance-optimization-guide)
-- [Muvi - How To Optimize FFmpeg For Fast Video Encoding](https://www.muvi.com/blogs/optimize-ffmpeg-for-fast-video-encoding/)
-- [GitHub - blakeblackshear/frigate Issue #5459: Optimize threading+latency of ffmpeg configuration](https://github.com/blakeblackshear/frigate/issues/5459)
-- [Medium - Rethinking HLS: Is it Possible to Achieve Low-Latency Streaming with HLS?](https://medium.com/@OvenMediaEngine/rethinking-hls-is-it-possible-to-achieve-low-latency-streaming-with-hls-9d00512b3e61)
-- [Tebi.io - FFMpeg Reduced Latency HLS](https://docs.tebi.io/streaming/ffmpeg_rl_hls.html)
-- [VideoSDK - HLS Low Latency: The Ultimate 2025 Guide](https://www.videosdk.live/developer-hub/hls/hls-low-latency)
-- [Trixpark Blog - Achieving Ultra-Low Latency Streaming: Codecs and FFmpeg Examples](https://blog.trixpark.com/achieving-ultra-low-latency-streaming-codecs-and-ffmpeg-examples/)
+### FFmpeg Process Cleanup
+- [Race condition: We had to kill ffmpeg to stop it · Issue #13 · imageio/imageio-ffmpeg](https://github.com/imageio/imageio-ffmpeg/issues/13)
+- [#7312 (crash while encoding from x11grab when source goes away) – FFmpeg](https://trac.ffmpeg.org/ticket/7312)
+- [Killing an ffmpeg process kills Streamer · Issue #20 · shaka-project/shaka-streamer](https://github.com/google/shaka-streamer/issues/20)
+- [How to gently terminate ffmpeg when called from a service?](https://forums.raspberrypi.com/viewtopic.php?t=284030)
 
-### HLS & Adaptive Bitrate Streaming
-- [Medium - Creating A Production Ready Multi Bitrate HLS VOD stream](https://medium.com/@peer5/creating-a-production-ready-multi-bitrate-hls-vod-stream-dff1e2f1612c)
-- [OTTVerse - HLS Packaging using FFmpeg - Easy Step-by-Step Tutorial](https://ottverse.com/hls-packaging-using-ffmpeg-live-vod/)
-- [Martin Riedl - Using FFmpeg as a HLS streaming server (Part 3) – Multiple Bitrates](https://www.martin-riedl.de/2018/08/25/using-ffmpeg-as-a-hls-streaming-server-part-3/)
-- [Medium - Adaptive bitrate streaming HLS VOD service in NodeJS](https://medium.com/sharma02gaurav/adaptive-bitrate-streaming-hls-vod-service-in-nodejs-8df0d91d2eb4)
+### pychromecast Callbacks
+- [More Documentation Needed to Avoid RunTime errors · Issue #560 · home-assistant-libs/pychromecast](https://github.com/home-assistant-libs/pychromecast/issues/560)
+- [Media status listener doesn't work for async discovery · Issue #259 · home-assistant-libs/pychromecast](https://github.com/home-assistant-libs/pychromecast/issues/259)
+- [Release 14.0.0 · home-assistant-libs/pychromecast](https://github.com/home-assistant-libs/pychromecast/releases/tag/14.0.0)
+- [[pychromecast.controllers.media] Exception thrown when calling media status callback · Issue #35780 · home-assistant/core](https://github.com/home-assistant/core/issues/35780)
 
-### Webhook Processing
-- [GitHub - go-gitea/gitea PR #19390: Use queue instead of memory queue in webhook send service](https://github.com/go-gitea/gitea/pull/19390)
-- [Vessel - A Beginner's Guide To Handling Webhooks for Integrations](https://www.vessel.dev/blog/a-beginners-guide-to-handling-webhooks-for-integrations-2cfe2)
-- [Hookdeck - Webhook Infrastructure Performance Monitoring, Scalability Tuning and Resource Estimation](https://hookdeck.com/webhooks/guides/webhook-infrastructure-performance-monitoring-scalability-resource)
-- [Atlassian Support - Webhook events are skipped because the queue is full](https://support.atlassian.com/bitbucket-data-center/kb/webhook-events-are-skipped-because-the-queue-is-full/)
+### fMP4 Fragmentation
+- [In-browser live video using Fragmented MP4 | by Vlad Poberezhny | Medium](https://medium.com/@vlad.pbr/in-browser-live-video-using-fragmented-mp4-3aedb600a07e)
+- [How Fragmented MP4 Works for Adaptive Streaming](https://www.simalabs.ai/resources/how-fragmented-mp4-works-for-adaptive-streaming)
+- [1077264 - Fragmented MP4 generated by mp4fragment utility do not play](https://bugzilla.mozilla.org/show_bug.cgi?id=1077264)
 
-### HDMI CEC Issues
-- [Google Nest Community - Chromecast w GTV is sending unwanted HDMI CEC signal](https://www.googlenestcommunity.com/t5/Streaming/Chromecast-w-GTV-is-sending-unwanted-HDMI-CEC-signal/m-p/296407)
-- [AVS Forum - 2020 Chromecast with Google TV - CEC issues](https://www.avsforum.com/threads/2020-chromecast-with-google-tv-cec-issues.3171135/)
-- [AVForums - HDMI CEC problems](https://www.avforums.com/threads/hdmi-cec-problems.2335412/)
+### Proxmox GPU Passthrough
+- [GPU Passthrough with Proxmox: A Practical Guide](https://diymediaserver.com/post/gpu-passthrough-proxmox-quicksync-guide/)
+- [Intel N100/iGPU Passthrough to VM and use with Docker | Proxmox Support Forum](https://forum.proxmox.com/threads/intel-n100-igpu-passthrough-to-vm-and-use-with-docker.140370/)
+- [Quick Sync and iGPU passthrough - Perfect Media Server](https://perfectmediaserver.com/05-advanced/passthrough-igpu-gvtg/)
+- [Intel NUC GPU passthrough in Proxmox 6.1 with Plex and Docker · Jack Cuthbert](https://jackcuthbert.dev/blog/intel-nuc-gpu-passthrough-in-proxmox-plex-docker)
 
 ---
-*Pitfalls research for: Web-to-video streaming service with Cast protocol integration*
-*Researched: 2026-01-15*
+*Pitfalls research for: v2.0 Stability and Hardware Acceleration*
+*Researched: 2026-01-18*
+*Focused on: Intel QuickSync integration, HLS buffering fixes, process cleanup, device-initiated stop detection, Proxmox GPU passthrough*
