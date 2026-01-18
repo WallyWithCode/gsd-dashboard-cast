@@ -40,10 +40,11 @@ See: .planning/milestones/v1.1-ROADMAP.md
   3. Stream continues indefinitely until explicitly stopped via webhook
   4. No stale HLS segments remain in /tmp/streams/ after session ends
 **Research:** Unlikely (established patterns)
-**Plans:** 1 plan
+**Plans:** 2 plans
 
 Plans:
 - [ ] 09-01-PLAN.md — HLS buffering configuration fix and startup cleanup
+- [ ] 09-02-PLAN.md — FFmpeg subprocess log forwarding (gap closure)
 
 #### Phase 10: fMP4 Low-Latency Validation
 **Goal:** fMP4 low-latency mode validated and working correctly
@@ -121,7 +122,7 @@ Phases execute in numeric order: 9 → 10 → 11 → 12 → 13
 | 6. HLS Buffered Streaming | v1.1 | 3/3 | Complete | 2026-01-17 |
 | 7. fMP4 Low-Latency Streaming | v1.1 | 3/3 | Complete | 2026-01-18 |
 | 8. Cast Media Playback | v1.1 | 2/2 | Complete | 2026-01-18 |
-| 9. HLS Buffering Fix | v2.0 | 0/1 | Not started | - |
+| 9. HLS Buffering Fix | v2.0 | 0/2 | Not started | - |
 | 10. fMP4 Low-Latency Validation | v2.0 | 0/? | Not started | - |
 | 11. Cast Session State Monitoring | v2.0 | 0/? | Not started | - |
 | 12. Process Lifecycle Management | v2.0 | 0/? | Not started | - |
