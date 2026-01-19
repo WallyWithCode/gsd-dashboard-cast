@@ -62,6 +62,7 @@ class FFmpegEncoder:
         self.mode = mode
         self.process = None
         self.output_path = None
+        self.log_task = None  # Background task for FFmpeg output logging
 
         # Create output directory if it doesn't exist
         os.makedirs(output_dir, exist_ok=True)
@@ -253,6 +254,9 @@ class FFmpegEncoder:
 
         logger.info(f"FFmpeg process started (PID: {self.process.pid})")
 
+        # Start background task to forward FFmpeg output to logs
+        self.log_task = asyncio.create_task(self._log_ffmpeg_output())
+
         # Wait for output file to be created
         # HLS needs segment time (2s) + overhead, fMP4 needs less time
         max_wait = 5 if self.mode == 'hls' else 3
@@ -307,6 +311,15 @@ class FFmpegEncoder:
             return
 
         logger.info(f"Stopping FFmpeg process (PID: {self.process.pid})")
+
+        # Cancel log forwarding task before terminating process
+        # This must happen BEFORE terminate() to prevent reading from a closed pipe
+        if self.log_task and not self.log_task.done():
+            self.log_task.cancel()
+            try:
+                await self.log_task
+            except asyncio.CancelledError:
+                pass  # Expected cancellation
 
         # Terminate gracefully
         self.process.terminate()
