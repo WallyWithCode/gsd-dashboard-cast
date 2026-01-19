@@ -13,6 +13,15 @@ services:
       - STREAM_HOST_IP=10.10.0.133  # <-- CHANGE THIS to your Ubuntu machine's IP
       # Optional: Discover Cast device by friendly name
       # - CAST_DEVICE_NAME=Living Room TV
+      # Intel QuickSync hardware acceleration
+      - LIBVA_DRIVER_NAME=iHD  # Force iHD driver for Gen 8+ Intel GPUs
+    # GPU device passthrough - Required for Intel QuickSync hardware acceleration
+    devices:
+      - /dev/dri:/dev/dri  # Pass entire DRI directory (card0 and renderD128)
+    # GPU group permissions - Run scripts/detect-gpu-gids.sh to get actual GIDs
+    group_add:
+      - "RENDER_GID"  # Replace with actual GID from detect-gpu-gids.sh
+      - "VIDEO_GID"   # Replace with actual GID from detect-gpu-gids.sh
     # network_mode: host  # Only works on native Linux - not Docker Desktop
     ports:
       - "8000:8000"   # Webhook API
