@@ -120,8 +120,6 @@ class HardwareAcceleration:
                 'encoder': 'h264_qsv',
                 'encoder_args': [
                     '-global_quality', '23',      # ICQ mode quality target (like CRF)
-                    '-look_ahead', '1',           # Enable lookahead rate control
-                    '-look_ahead_depth', '40',    # Analyze 40 frames ahead
                 ]
             }
         else:
