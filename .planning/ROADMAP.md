@@ -2,7 +2,7 @@
 
 ## Overview
 
-v2.0 Stability and Hardware Acceleration transforms the system from proof-of-concept to production-ready service. Five phases address critical operational issues: fix HLS buffering freeze (6-second bug), validate low-latency fMP4 mode, detect device-initiated stops, implement robust process lifecycle management, and integrate Intel QuickSync hardware acceleration with graceful fallback. Each phase independently deployable and provides value even if later phases deferred.
+v2.0 Stability and Hardware Acceleration transforms the system from proof-of-concept to production-ready service. Five phases address critical operational issues: fix HLS buffering freeze (6-second bug), integrate Intel QuickSync hardware acceleration to resolve CPU bottleneck, validate low-latency fMP4 mode, detect device-initiated stops, and implement robust process lifecycle management. Hardware acceleration prioritized to enable working demonstration on resource-constrained VMs.
 
 ## Milestones
 
@@ -46,53 +46,9 @@ Plans:
 - [ ] 09-01-PLAN.md — HLS buffering configuration fix and startup cleanup
 - [ ] 09-02-PLAN.md — FFmpeg subprocess log forwarding (gap closure)
 
-#### Phase 10: fMP4 Low-Latency Validation
-**Goal:** fMP4 low-latency mode validated and working correctly
-**Depends on:** Nothing (independent validation of existing feature)
-**Requirements:** FMP4-01, FMP4-02, FMP4-03, FMP4-04
-**Success Criteria** (what must be TRUE):
-  1. fMP4 stream plays without freezing on Cast device
-  2. Low-latency mode achieves <2 second glass-to-glass latency
-  3. Range requests work correctly between Cast device and aiohttp server
-  4. MIME type and CORS headers return correct values for fMP4 streams
-**Research:** Unlikely (validation testing)
-**Plans:** TBD
-
-Plans:
-- [ ] 10-01: TBD (during planning)
-
-#### Phase 11: Cast Session State Monitoring
-**Goal:** Device-initiated stop detection enables automatic cleanup
-**Depends on:** Nothing (foundation for process management)
-**Requirements:** PROC-01, PROC-02
-**Success Criteria** (what must be TRUE):
-  1. Service detects when user stops cast from TV remote
-  2. Application receives notification within 2 seconds of device stop
-  3. Stopping from TV remote triggers cleanup callback
-**Research:** Unlikely (standard pychromecast usage)
-**Plans:** TBD
-
-Plans:
-- [ ] 11-01: TBD (during planning)
-
-#### Phase 12: Process Lifecycle Management
-**Goal:** FFmpeg processes automatically cleaned up with zero orphans
-**Depends on:** Phase 11 (session monitoring provides stop detection)
-**Requirements:** PROC-03, PROC-04, PROC-05, PROC-06, PROC-07, OPER-02, OPER-03
-**Success Criteria** (what must be TRUE):
-  1. FFmpeg terminates within 5 seconds when cast stops from device
-  2. No orphaned FFmpeg processes after stop/start cycles
-  3. Docker SIGTERM triggers graceful shutdown of all active streams
-  4. Service remains stable after 10+ consecutive start/stop cycles
-**Research:** Unlikely (standard Python asyncio patterns)
-**Plans:** TBD
-
-Plans:
-- [ ] 12-01: TBD (during planning)
-
-#### Phase 13: Intel QuickSync Hardware Acceleration
+#### Phase 10: Intel QuickSync Hardware Acceleration
 **Goal:** Hardware acceleration reduces CPU usage by 80-90% per stream
-**Depends on:** Phase 12 (stable process management required before hardware complexity)
+**Depends on:** Nothing (prioritized to enable working demonstration)
 **Requirements:** HWAC-01, HWAC-02, HWAC-03, HWAC-04, HWAC-05, HWAC-06, HWAC-07, OPER-01, OPER-04
 **Success Criteria** (what must be TRUE):
   1. h264_qsv encoder encodes 1080p stream at <20% CPU on Intel CPU
@@ -105,12 +61,57 @@ Plans:
 **Plans:** TBD
 
 Plans:
+- [ ] 10-01: TBD (during planning)
+
+#### Phase 11: fMP4 Low-Latency Validation
+**Goal:** fMP4 low-latency mode validated and working correctly
+**Depends on:** Phase 10 (hardware acceleration enables proper performance testing)
+**Requirements:** FMP4-01, FMP4-02, FMP4-03, FMP4-04
+**Success Criteria** (what must be TRUE):
+  1. fMP4 stream plays without freezing on Cast device
+  2. Low-latency mode achieves <2 second glass-to-glass latency
+  3. Range requests work correctly between Cast device and aiohttp server
+  4. MIME type and CORS headers return correct values for fMP4 streams
+**Research:** Unlikely (validation testing)
+**Plans:** TBD
+
+Plans:
+- [ ] 11-01: TBD (during planning)
+
+#### Phase 12: Cast Session State Monitoring
+**Goal:** Device-initiated stop detection enables automatic cleanup
+**Depends on:** Nothing (foundation for process management)
+**Requirements:** PROC-01, PROC-02
+**Success Criteria** (what must be TRUE):
+  1. Service detects when user stops cast from TV remote
+  2. Application receives notification within 2 seconds of device stop
+  3. Stopping from TV remote triggers cleanup callback
+**Research:** Unlikely (standard pychromecast usage)
+**Plans:** TBD
+
+Plans:
+- [ ] 12-01: TBD (during planning)
+
+#### Phase 13: Process Lifecycle Management
+**Goal:** FFmpeg processes automatically cleaned up with zero orphans
+**Depends on:** Phase 12 (session monitoring provides stop detection)
+**Requirements:** PROC-03, PROC-04, PROC-05, PROC-06, PROC-07, OPER-02, OPER-03
+**Success Criteria** (what must be TRUE):
+  1. FFmpeg terminates within 5 seconds when cast stops from device
+  2. No orphaned FFmpeg processes after stop/start cycles
+  3. Docker SIGTERM triggers graceful shutdown of all active streams
+  4. Service remains stable after 10+ consecutive start/stop cycles
+**Research:** Unlikely (standard Python asyncio patterns)
+**Plans:** TBD
+
+Plans:
 - [ ] 13-01: TBD (during planning)
 
 ## Progress
 
 **Execution Order:**
 Phases execute in numeric order: 9 → 10 → 11 → 12 → 13
+Phase 10 (QuickSync) prioritized to resolve CPU bottleneck before validation phases.
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
@@ -122,11 +123,11 @@ Phases execute in numeric order: 9 → 10 → 11 → 12 → 13
 | 6. HLS Buffered Streaming | v1.1 | 3/3 | Complete | 2026-01-17 |
 | 7. fMP4 Low-Latency Streaming | v1.1 | 3/3 | Complete | 2026-01-18 |
 | 8. Cast Media Playback | v1.1 | 2/2 | Complete | 2026-01-18 |
-| 9. HLS Buffering Fix | v2.0 | 0/2 | Not started | - |
-| 10. fMP4 Low-Latency Validation | v2.0 | 0/? | Not started | - |
-| 11. Cast Session State Monitoring | v2.0 | 0/? | Not started | - |
-| 12. Process Lifecycle Management | v2.0 | 0/? | Not started | - |
-| 13. Intel QuickSync Hardware Acceleration | v2.0 | 0/? | Not started | - |
+| 9. HLS Buffering Fix | v2.0 | 2/2 | Complete | 2026-01-19 |
+| 10. Intel QuickSync Hardware Acceleration | v2.0 | 0/? | Not started | - |
+| 11. fMP4 Low-Latency Validation | v2.0 | 0/? | Not started | - |
+| 12. Cast Session State Monitoring | v2.0 | 0/? | Not started | - |
+| 13. Process Lifecycle Management | v2.0 | 0/? | Not started | - |
 
 ---
 *Roadmap created: 2026-01-18 for v2.0 Stability and Hardware Acceleration*

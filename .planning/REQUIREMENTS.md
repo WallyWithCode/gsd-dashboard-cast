@@ -89,11 +89,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| HLS-01 | Phase 9 | Pending |
-| HLS-02 | Phase 9 | Pending |
-| HLS-03 | Phase 9 | Pending |
-| HLS-04 | Phase 9 | Pending |
-| HLS-05 | Phase 9 | Pending |
+| HLS-01 | Phase 9 | Complete |
+| HLS-02 | Phase 9 | Complete |
+| HLS-03 | Phase 9 | Complete |
+| HLS-04 | Phase 9 | Complete |
+| HLS-05 | Phase 9 | Complete |
 | FMP4-01 | Phase 10 | Pending |
 | FMP4-02 | Phase 10 | Pending |
 | FMP4-03 | Phase 10 | Pending |
