@@ -101,7 +101,15 @@ class FFmpegEncoder:
         self.encoder = encoder_config['encoder']  # Store for logging
 
         # Base arguments for x11grab input (video source)
-        args = [
+        args = []
+
+        # Initialize VAAPI hardware device if using hardware encoding
+        if self.encoder == 'h264_vaapi':
+            args.extend([
+                '-vaapi_device', '/dev/dri/renderD128',
+            ])
+
+        args.extend([
             # Video input configuration
             '-f', 'x11grab',
             '-video_size', f'{width}x{height}',
@@ -115,20 +123,21 @@ class FFmpegEncoder:
             # Map video and audio inputs
             '-map', '0:v',  # Video from x11grab
             '-map', '1:a',  # Audio from anullsrc
+        ])
 
-            # Video codec and encoding settings (hardware-aware)
-            '-c:v', self.encoder,
-            '-pix_fmt', 'yuv420p',
-        ]
-
-        # Encoder-specific rate control
-        if self.encoder == 'h264_qsv':
-            # QuickSync: Use ICQ mode with look_ahead
+        # Hardware encoding setup
+        if self.encoder == 'h264_vaapi':
+            args.extend([
+                # Upload frames to GPU and encode
+                '-vf', 'format=nv12,hwupload',
+                '-c:v', 'h264_vaapi',
+            ])
             args.extend(encoder_config['encoder_args'])
-            # Note: global_quality replaces bitrate/preset for QSV
         else:
             # libx264: Use existing bitrate/preset configuration
             args.extend([
+                '-c:v', 'libx264',
+                '-pix_fmt', 'yuv420p',
                 '-preset', preset,
                 '-b:v', f'{bitrate}k',
                 '-maxrate', f'{bitrate}k',

@@ -117,9 +117,9 @@ class HardwareAcceleration:
         """
         if self.is_qsv_available():
             return {
-                'encoder': 'h264_qsv',
+                'encoder': 'h264_vaapi',  # Use VAAPI instead of QSV for better Linux compatibility
                 'encoder_args': [
-                    '-global_quality', '23',      # ICQ mode quality target (like CRF)
+                    '-qp', '23',      # Constant QP (like CRF for VAAPI)
                 ]
             }
         else:
