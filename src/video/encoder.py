@@ -167,6 +167,49 @@ class FFmpegEncoder:
 
         return args
 
+    async def _log_ffmpeg_output(self):
+        """Read FFmpeg stderr and forward to application logs.
+
+        FFmpeg writes all output (progress, warnings, errors) to stderr.
+        This task runs in the background during encoding to capture output.
+        """
+        if not self.process or not self.process.stderr:
+            return
+
+        try:
+            while True:
+                # Read line from stderr
+                line = await self.process.stderr.readline()
+                if not line:
+                    # EOF reached, process terminated
+                    break
+
+                # Decode and strip whitespace
+                output = line.decode('utf-8', errors='replace').strip()
+
+                if not output:
+                    continue
+
+                # Log with appropriate level based on content
+                # FFmpeg uses stderr for all output, not just errors
+                if 'error' in output.lower():
+                    logger.error(f"FFmpeg: {output}")
+                elif 'warning' in output.lower():
+                    logger.warning(f"FFmpeg: {output}")
+                elif output.startswith('frame=') or output.startswith('size='):
+                    # Encoding progress updates - debug level to avoid spam
+                    logger.debug(f"FFmpeg: {output}")
+                else:
+                    # General info (stream mapping, codec info, etc.)
+                    logger.info(f"FFmpeg: {output}")
+
+        except asyncio.CancelledError:
+            # Task cancelled during cleanup - normal behavior
+            logger.debug("FFmpeg log forwarding cancelled")
+            raise
+        except Exception as e:
+            logger.error(f"Error reading FFmpeg output: {e}")
+
     async def __aenter__(self) -> str:
         """Start FFmpeg encoding process.
 
