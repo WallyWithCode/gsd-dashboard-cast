@@ -43,8 +43,8 @@ See: .planning/milestones/v1.1-ROADMAP.md
 **Plans:** 2 plans
 
 Plans:
-- [ ] 09-01-PLAN.md — HLS buffering configuration fix and startup cleanup
-- [ ] 09-02-PLAN.md — FFmpeg subprocess log forwarding (gap closure)
+- [x] 09-01-PLAN.md — HLS buffering configuration fix and startup cleanup
+- [x] 09-02-PLAN.md — FFmpeg subprocess log forwarding (gap closure)
 
 #### Phase 10: Intel QuickSync Hardware Acceleration
 **Goal:** Hardware acceleration reduces CPU usage by 80-90% per stream
@@ -56,12 +56,15 @@ Plans:
   3. Health check endpoint reports hardware acceleration status
   4. Proxmox GPU passthrough documentation enables /dev/dri access
   5. Docker container correctly accesses /dev/dri/renderD128 with render group
-**Research:** Likely (Proxmox GPU passthrough)
+**Research:** Completed (10-RESEARCH.md)
 **Research topics:** IOMMU group conflicts, driver selection (iHD vs i965) per CPU generation
-**Plans:** TBD
+**Plans:** 4 plans
 
 Plans:
-- [ ] 10-01: TBD (during planning)
+- [ ] 10-01-PLAN.md — Docker infrastructure for QuickSync (Dockerfile + docker-compose)
+- [ ] 10-02-PLAN.md — Hardware detection module with graceful fallback
+- [ ] 10-03-PLAN.md — Encoder QuickSync integration and health endpoint
+- [ ] 10-04-PLAN.md — Proxmox GPU passthrough documentation
 
 #### Phase 11: fMP4 Low-Latency Validation
 **Goal:** fMP4 low-latency mode validated and working correctly
@@ -124,7 +127,7 @@ Phase 10 (QuickSync) prioritized to resolve CPU bottleneck before validation pha
 | 7. fMP4 Low-Latency Streaming | v1.1 | 3/3 | Complete | 2026-01-18 |
 | 8. Cast Media Playback | v1.1 | 2/2 | Complete | 2026-01-18 |
 | 9. HLS Buffering Fix | v2.0 | 2/2 | Complete | 2026-01-19 |
-| 10. Intel QuickSync Hardware Acceleration | v2.0 | 0/? | Not started | - |
+| 10. Intel QuickSync Hardware Acceleration | v2.0 | 0/4 | Ready | - |
 | 11. fMP4 Low-Latency Validation | v2.0 | 0/? | Not started | - |
 | 12. Cast Session State Monitoring | v2.0 | 0/? | Not started | - |
 | 13. Process Lifecycle Management | v2.0 | 0/? | Not started | - |
