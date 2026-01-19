@@ -86,10 +86,12 @@ Recent decisions affecting v2.0 work:
 
 ### Pending Todos
 
-3 todos pending. See `.planning/todos/pending/`
+5 todos pending. See `.planning/todos/pending/`
 
+- **Hide Chrome URL bar and enable fullscreen mode** — remove URL bar to maximize screen space during streaming (video)
+- **Fix webpage centering and scaling issues** — correct resolution/viewport mismatch causing misaligned content (video)
 - **Direct RTSP to Cast streaming** — bypass browser capture for camera feeds (video)
-- **Hardware acceleration (QuickSync/VAAPI)** — reduce CPU usage for FFmpeg encoding (v2.0 Phase 13)
+- **Hardware acceleration (QuickSync/VAAPI)** — ✅ COMPLETE in Phase 10 (using h264_vaapi with 29% CPU reduction)
 - **FFmpeg process cleanup bug** — multiple FFmpeg processes spawned, not cleaned up on error (v2.0 Phase 12)
 
 ### Resolved Todos
