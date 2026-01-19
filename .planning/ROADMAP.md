@@ -61,10 +61,10 @@ Plans:
 **Plans:** 4 plans
 
 Plans:
-- [ ] 10-01-PLAN.md — Docker infrastructure for QuickSync (Dockerfile + docker-compose)
-- [ ] 10-02-PLAN.md — Hardware detection module with graceful fallback
-- [ ] 10-03-PLAN.md — Encoder QuickSync integration and health endpoint
-- [ ] 10-04-PLAN.md — Proxmox GPU passthrough documentation
+- [x] 10-01-PLAN.md — Docker infrastructure for QuickSync (Dockerfile + docker-compose)
+- [x] 10-02-PLAN.md — Hardware detection module with graceful fallback
+- [x] 10-03-PLAN.md — Encoder QuickSync integration and health endpoint
+- [x] 10-04-PLAN.md — Proxmox GPU passthrough documentation
 
 #### Phase 11: fMP4 Low-Latency Validation
 **Goal:** fMP4 low-latency mode validated and working correctly
@@ -127,7 +127,7 @@ Phase 10 (QuickSync) prioritized to resolve CPU bottleneck before validation pha
 | 7. fMP4 Low-Latency Streaming | v1.1 | 3/3 | Complete | 2026-01-18 |
 | 8. Cast Media Playback | v1.1 | 2/2 | Complete | 2026-01-18 |
 | 9. HLS Buffering Fix | v2.0 | 2/2 | Complete | 2026-01-19 |
-| 10. Intel QuickSync Hardware Acceleration | v2.0 | 0/4 | Ready | - |
+| 10. Intel QuickSync Hardware Acceleration | v2.0 | 4/4 | Complete | 2026-01-19 |
 | 11. fMP4 Low-Latency Validation | v2.0 | 0/? | Not started | - |
 | 12. Cast Session State Monitoring | v2.0 | 0/? | Not started | - |
 | 13. Process Lifecycle Management | v2.0 | 0/? | Not started | - |

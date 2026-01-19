@@ -5,14 +5,14 @@
 See: .planning/PROJECT.md (updated 2026-01-18)
 
 **Core value:** Seamless webhook-triggered casting of authenticated web dashboards to Android TV, enabling Home Assistant automations to display contextual information on demand.
-**Current focus:** v2.0 Stability and Hardware Acceleration - Phase 10: Intel QuickSync Hardware Acceleration
+**Current focus:** v2.0 Stability and Hardware Acceleration - Phase 11: fMP4 Low-Latency Validation
 
 ## Current Position
 
-Phase: 10 of 13 (Intel QuickSync Hardware Acceleration)
-Plan: 4 of 4 in phase
-Status: Phase complete
-Last activity: 2026-01-19 — Completed 10-04-PLAN.md (Testing and Documentation)
+Phase: 11 of 13 (fMP4 Low-Latency Validation)
+Plan: 0 of ? in phase
+Status: Ready for planning
+Last activity: 2026-01-19 — Completed Phase 10 (Intel QuickSync Hardware Acceleration)
 
 Progress: [██████████░░░░░░░░░░] 52% (26/50 estimated plans complete across all phases)
 

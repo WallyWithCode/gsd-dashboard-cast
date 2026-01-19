@@ -9,11 +9,11 @@ Requirements for v2.0 Stability and Hardware Acceleration milestone. Each maps t
 
 ### HLS Streaming Stability
 
-- [ ] **HLS-01**: HLS streams play indefinitely without freezing (fix 6-second freeze bug)
-- [ ] **HLS-02**: HLS buffer window configured for 40-60s buffer (20-30 segments)
-- [ ] **HLS-03**: EVENT playlist type or omit_endlist flag enabled for continuous streaming
-- [ ] **HLS-04**: GOP keyframes aligned with segment duration to prevent stuttering
-- [ ] **HLS-05**: Startup cleanup removes stale HLS segments from previous sessions
+- [x] **HLS-01**: HLS streams play indefinitely without freezing (fix 6-second freeze bug)
+- [x] **HLS-02**: HLS buffer window configured for 40-60s buffer (20-30 segments)
+- [x] **HLS-03**: EVENT playlist type or omit_endlist flag enabled for continuous streaming
+- [x] **HLS-04**: GOP keyframes aligned with segment duration to prevent stuttering
+- [x] **HLS-05**: Startup cleanup removes stale HLS segments from previous sessions
 
 ### Low-Latency Mode
 
@@ -34,20 +34,20 @@ Requirements for v2.0 Stability and Hardware Acceleration milestone. Each maps t
 
 ### Hardware Acceleration
 
-- [ ] **HWAC-01**: Intel QuickSync h264_qsv encoder support implemented
-- [ ] **HWAC-02**: Graceful fallback to software encoding if QuickSync unavailable
-- [ ] **HWAC-03**: Runtime hardware detection with vainfo verification
-- [ ] **HWAC-04**: QuickSync achieves 80-90% CPU reduction per stream vs software encoding
-- [ ] **HWAC-05**: Proxmox GPU passthrough documentation created (IOMMU config, /dev/dri access)
-- [ ] **HWAC-06**: Docker render GID configured to match host for /dev/dri access
-- [ ] **HWAC-07**: FFmpeg 7.0+ with OneVPL support for Gen 12+ Intel GPUs
+- [x] **HWAC-01**: Intel QuickSync h264_qsv encoder support implemented
+- [x] **HWAC-02**: Graceful fallback to software encoding if QuickSync unavailable
+- [x] **HWAC-03**: Runtime hardware detection with vainfo verification
+- [x] **HWAC-04**: QuickSync achieves 80-90% CPU reduction per stream vs software encoding
+- [x] **HWAC-05**: Proxmox GPU passthrough documentation created (IOMMU config, /dev/dri access)
+- [x] **HWAC-06**: Docker render GID configured to match host for /dev/dri access
+- [x] **HWAC-07**: FFmpeg 7.0+ with OneVPL support for Gen 12+ Intel GPUs
 
 ### Operational Robustness
 
-- [ ] **OPER-01**: Health check endpoint reports QuickSync availability status
+- [x] **OPER-01**: Health check endpoint reports QuickSync availability status
 - [ ] **OPER-02**: Process monitoring background task detects orphaned FFmpeg processes
 - [ ] **OPER-03**: Structured logging for FFmpeg lifecycle events (start, stop, error, cleanup)
-- [ ] **OPER-04**: Service degrades gracefully when hardware acceleration unavailable
+- [x] **OPER-04**: Service degrades gracefully when hardware acceleration unavailable
 
 ## v2.1+ Requirements
 
@@ -94,28 +94,28 @@ Which phases cover which requirements. Updated during roadmap creation.
 | HLS-03 | Phase 9 | Complete |
 | HLS-04 | Phase 9 | Complete |
 | HLS-05 | Phase 9 | Complete |
-| FMP4-01 | Phase 10 | Pending |
-| FMP4-02 | Phase 10 | Pending |
-| FMP4-03 | Phase 10 | Pending |
-| FMP4-04 | Phase 10 | Pending |
-| PROC-01 | Phase 11 | Pending |
-| PROC-02 | Phase 11 | Pending |
-| PROC-03 | Phase 12 | Pending |
-| PROC-04 | Phase 12 | Pending |
-| PROC-05 | Phase 12 | Pending |
-| PROC-06 | Phase 12 | Pending |
-| PROC-07 | Phase 12 | Pending |
-| HWAC-01 | Phase 13 | Pending |
-| HWAC-02 | Phase 13 | Pending |
-| HWAC-03 | Phase 13 | Pending |
-| HWAC-04 | Phase 13 | Pending |
-| HWAC-05 | Phase 13 | Pending |
-| HWAC-06 | Phase 13 | Pending |
-| HWAC-07 | Phase 13 | Pending |
-| OPER-01 | Phase 13 | Pending |
-| OPER-02 | Phase 12 | Pending |
-| OPER-03 | Phase 12 | Pending |
-| OPER-04 | Phase 13 | Pending |
+| HWAC-01 | Phase 10 | Complete |
+| HWAC-02 | Phase 10 | Complete |
+| HWAC-03 | Phase 10 | Complete |
+| HWAC-04 | Phase 10 | Complete |
+| HWAC-05 | Phase 10 | Complete |
+| HWAC-06 | Phase 10 | Complete |
+| HWAC-07 | Phase 10 | Complete |
+| OPER-01 | Phase 10 | Complete |
+| OPER-04 | Phase 10 | Complete |
+| FMP4-01 | Phase 11 | Pending |
+| FMP4-02 | Phase 11 | Pending |
+| FMP4-03 | Phase 11 | Pending |
+| FMP4-04 | Phase 11 | Pending |
+| PROC-01 | Phase 12 | Pending |
+| PROC-02 | Phase 12 | Pending |
+| PROC-03 | Phase 13 | Pending |
+| PROC-04 | Phase 13 | Pending |
+| PROC-05 | Phase 13 | Pending |
+| PROC-06 | Phase 13 | Pending |
+| PROC-07 | Phase 13 | Pending |
+| OPER-02 | Phase 13 | Pending |
+| OPER-03 | Phase 13 | Pending |
 
 **Coverage:**
 - v2.0 requirements: 29 total
@@ -123,13 +123,13 @@ Which phases cover which requirements. Updated during roadmap creation.
 - Unmapped: 0
 
 **Phase distribution:**
-- Phase 9: 5 requirements (HLS buffering)
-- Phase 10: 4 requirements (fMP4 validation)
-- Phase 11: 2 requirements (session monitoring)
-- Phase 12: 7 requirements (process lifecycle)
-- Phase 13: 9 requirements (hardware acceleration)
+- Phase 9: 5 requirements (HLS buffering) - Complete
+- Phase 10: 9 requirements (hardware acceleration) - Complete
+- Phase 11: 4 requirements (fMP4 validation)
+- Phase 12: 2 requirements (session monitoring)
+- Phase 13: 7 requirements (process lifecycle)
 - Total phases: 5
 
 ---
 *Requirements defined: 2026-01-18*
-*Last updated: 2026-01-18 after v2.0 roadmap creation*
+*Last updated: 2026-01-19 after Phase 10 completion*
