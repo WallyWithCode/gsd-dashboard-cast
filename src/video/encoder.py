@@ -16,6 +16,7 @@ from uuid import uuid4
 
 from .network import get_host_ip
 from .quality import QualityConfig
+from .hardware import HardwareAcceleration
 
 
 logger = logging.getLogger(__name__)
@@ -63,6 +64,8 @@ class FFmpegEncoder:
         self.process = None
         self.output_path = None
         self.log_task = None  # Background task for FFmpeg output logging
+        self.hw_accel = HardwareAcceleration()  # Detect QuickSync availability
+        self.encoder = None  # Store encoder name for logging in __aenter__
 
         # Create output directory if it doesn't exist
         os.makedirs(output_dir, exist_ok=True)
@@ -109,14 +112,29 @@ class FFmpegEncoder:
             '-map', '0:v',  # Video from x11grab
             '-map', '1:a',  # Audio from anullsrc
 
-            # Video codec and encoding settings
-            '-c:v', 'libx264',
-            '-pix_fmt', 'yuv420p',  # Convert BGR0 to YUV 4:2:0 (required for H.264 High profile)
-            '-preset', preset,
-            '-b:v', f'{bitrate}k',
-            '-maxrate', f'{bitrate}k',
-            '-bufsize', f'{bitrate * 2}k',
+            # Video codec and encoding settings (hardware-aware)
+            encoder_config = self.hw_accel.get_encoder_config()
+            self.encoder = encoder_config['encoder']  # Store for logging
 
+            '-c:v', self.encoder,
+            '-pix_fmt', 'yuv420p',
+        ]
+
+        # Encoder-specific rate control
+        if self.encoder == 'h264_qsv':
+            # QuickSync: Use ICQ mode with look_ahead
+            args.extend(encoder_config['encoder_args'])
+            # Note: global_quality replaces bitrate/preset for QSV
+        else:
+            # libx264: Use existing bitrate/preset configuration
+            args.extend([
+                '-preset', preset,
+                '-b:v', f'{bitrate}k',
+                '-maxrate', f'{bitrate}k',
+                '-bufsize', f'{bitrate * 2}k',
+            ])
+
+        args.extend([
             # H.264 profile/level for Cast compatibility
             '-profile:v', 'high',
             '-level:v', '4.1',
@@ -239,8 +257,8 @@ class FFmpegEncoder:
         args = self.build_ffmpeg_args(self.output_path)
 
         logger.info(
-            f"Starting FFmpeg encoder: {self.quality.resolution[0]}x{self.quality.resolution[1]} "
-            f"@ {self.quality.bitrate}kbps, preset={self.quality.preset}, "
+            f"Starting FFmpeg encoder: {self.encoder} @ {self.quality.resolution[0]}x{self.quality.resolution[1]} "
+            f"{self.quality.bitrate}kbps, preset={self.quality.preset}, "
             f"latency_mode={self.quality.latency_mode}, mode={self.mode}"
         )
 
