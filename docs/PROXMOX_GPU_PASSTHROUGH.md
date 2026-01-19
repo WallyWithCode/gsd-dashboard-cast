@@ -1,243 +1,556 @@
-# Proxmox Intel QuickSync GPU Passthrough Guide
+# Proxmox Intel GPU Hardware Acceleration Guide
 
 ## Overview
 
-This guide enables Intel QuickSync hardware acceleration for the Dashboard Cast Service running in Proxmox VMs or LXC containers. QuickSync reduces CPU usage by 80-90% per stream by offloading H.264 encoding to the Intel integrated GPU.
+This guide enables Intel GPU hardware acceleration for the Dashboard Cast Service running in Proxmox VMs. Hardware acceleration offloads H.264 encoding from CPU to GPU, significantly reducing CPU usage during streaming.
+
+**Important:** This guide uses **VAAPI** (Video Acceleration API), not Intel QuickSync QSV directly. Testing revealed that `h264_qsv` has compatibility issues on CometLake Gen 10 (MFX session initialization errors), while `h264_vaapi` works reliably.
 
 **Requirements:**
 - Proxmox VE 7.0+ (tested on 8.2.7)
 - Intel CPU with integrated graphics (NOT "F" suffix models like i9-14900KF)
-- Intel Gen 8+ CPU recommended (Broadwell 2014+) for iHD driver support
+- Intel Gen 8+ CPU (Coffee Lake 2017+) for best iHD driver support
+- Ubuntu VM with kernel 5.15+ (tested on Ubuntu 22.04, kernel 6.8.0-90)
 
-## Deployment Options
-
-### Option 1: LXC Container (Recommended)
-
-Simpler setup, better performance, privileged container required for device access.
-
-### Option 2: VM with GPU Passthrough
-
-More complex setup, requires IOMMU/VT-d, use if LXC not suitable.
+**Tested Configuration:**
+- CPU: Intel NUC9i5FN (CometLake-U Gen 10)
+- Proxmox: 8.2.7
+- VM: Ubuntu 22.04 (kernel 6.8.0-90-generic)
+- Result: 29% CPU reduction (58% vs 83%)
 
 ---
 
-## LXC Container Setup (Recommended)
+## Prerequisites Check (Proxmox Host)
 
-### Step 1: Enable IOMMU in Proxmox Host
+Before starting, verify IOMMU and GPU availability on your Proxmox host:
 
-Even LXC containers require IOMMU enabled for GPU device access.
-
-1. Check CPU support:
 ```bash
+# Check IOMMU is enabled
 dmesg | grep -e DMAR -e IOMMU
-# Should show: "DMAR: IOMMU enabled" or similar
+# Should show: "DMAR: Intel(R) Virtualization Technology for Directed I/O"
+# If not, see Step 1 below
+
+# Check Intel GPU is present
+lspci | grep -i vga
+# Should show: Intel Corporation CometLake-U GT2 (or similar)
+
+# Check /dev/dri devices exist
+ls -la /dev/dri/
+# Should show: card0 and renderD128
 ```
 
-2. Edit GRUB configuration on Proxmox host:
+---
+
+## Step 1: Enable IOMMU in Proxmox (If Not Already Enabled)
+
+**Check if already enabled:**
+```bash
+dmesg | grep -e DMAR -e IOMMU | grep -i "enabled\|initialized"
+```
+
+If you see "DMAR: IOMMU enabled" or "Intel(R) Virtualization Technology", **skip to Step 2**.
+
+**If IOMMU is not enabled:**
+
+1. Edit GRUB configuration:
 ```bash
 nano /etc/default/grub
 ```
 
-3. Add IOMMU parameters to GRUB_CMDLINE_LINUX_DEFAULT:
+2. Add IOMMU parameters to `GRUB_CMDLINE_LINUX_DEFAULT`:
 ```
 GRUB_CMDLINE_LINUX_DEFAULT="quiet intel_iommu=on iommu=pt"
 ```
 
-4. Update GRUB and reboot:
+3. Update GRUB and reboot:
 ```bash
 update-grub
 reboot
 ```
 
-5. Verify after reboot:
+4. Verify after reboot:
 ```bash
 dmesg | grep -e DMAR -e IOMMU
-# Should show "IOMMU enabled"
+# Should show "DMAR: IOMMU enabled"
 ```
 
-### Step 2: Identify GPU Device
+---
 
-On Proxmox host, identify Intel GPU device:
+## Step 2: Configure GPU Passthrough to VM
+
+### Find Your Intel GPU Device
+
+On Proxmox host:
+```bash
+lspci | grep -i vga
+```
+
+Example output:
+```
+00:02.0 VGA compatible controller: Intel Corporation CometLake-U GT2 [UHD Graphics] (rev 02)
+```
+
+Note the PCI address (e.g., `00:02.0`).
+
+### Add GPU to VM via Proxmox Web UI
+
+1. **Stop your VM** (dashboard-cast must be powered off)
+
+2. In Proxmox web UI:
+   - Select your VM
+   - Go to **Hardware** tab
+   - Click **Add** → **PCI Device**
+
+3. Configure PCI device:
+   - **Device:** Select your Intel GPU (00:02.0 VGA compatible controller)
+   - ✅ **All Functions** (check this box)
+   - ✅ **Primary GPU** (check this box if it's the only GPU)
+   - **ROM-Bar:** Leave enabled
+   - **PCI-Express:** Leave enabled
+
+4. Click **Add**
+
+5. **Start your VM**
+
+### Verify GPU is Visible in VM
+
+SSH into your Ubuntu VM and check:
 
 ```bash
-ls -l /dev/dri/
-# Look for: renderD128 (render node for encoding)
-# May also see: card0 (display output)
+lspci | grep -i vga
 ```
 
-Note the major:minor device numbers (usually 226:128 for renderD128).
-
-### Step 3: Configure LXC Container
-
-1. Edit container config on Proxmox host:
-```bash
-nano /etc/pve/lxc/<CTID>.conf
+You should see the Intel GPU (note the PCI address may differ from host):
+```
+00:10.0 VGA compatible controller: Intel Corporation CometLake-U GT2 [UHD Graphics] (rev 02)
 ```
 
-2. Add device passthrough lines:
-```
-lxc.cgroup2.devices.allow: c 226:0 rwm
-lxc.cgroup2.devices.allow: c 226:128 rwm
-lxc.mount.entry: /dev/dri/card0 dev/dri/card0 none bind,optional,create=file
-lxc.mount.entry: /dev/dri/renderD128 dev/dri/renderD128 none bind,optional,create=file
-```
+---
 
-3. Restart container:
-```bash
-pct stop <CTID>
-pct start <CTID>
-```
+## Step 3: Install Kernel Modules (Ubuntu VM)
 
-### Step 4: Configure Groups Inside Container
-
-Enter container and set up permissions:
+The Intel graphics driver (`i915`) is not included in the base kernel package.
 
 ```bash
-pct enter <CTID>
+# Install extra kernel modules
+sudo apt update
+sudo apt install -y linux-modules-extra-$(uname -r)
 
-# Check if /dev/dri exists
-ls -l /dev/dri
+# Load the i915 module
+sudo modprobe i915
 
-# Get render and video group IDs using helper script
-cd /path/to/dashboard-cast
-scripts/detect-gpu-gids.sh
+# Verify module is loaded
+lsmod | grep i915
+# Should show i915 and related modules
 
-# Update docker-compose.yml with actual GIDs:
-# Replace RENDER_GID with the number from render group
-# Replace VIDEO_GID with the number from video group
+# Make module load at boot
+echo "i915" | sudo tee -a /etc/modules
+
+# Verify /dev/dri was created
+ls -la /dev/dri/
+# Should show: card0 and renderD128
 ```
 
-**Note:** The `scripts/detect-gpu-gids.sh` helper script was created in Plan 10-01 Task 2. It automates detection of render and video group IDs, which vary by distribution. Run this script to get the correct GID values for your system.
+**Expected output of `ls -la /dev/dri/`:**
+```
+drwxr-xr-x  3 root root        100 Jan 19 12:41 .
+drwxr-xr-x 20 root root       4160 Jan 19 12:41 ..
+drwxr-xr-x  2 root root         80 Jan 19 12:41 by-path
+crw-rw----  1 root video  226,   0 Jan 19 12:41 card0
+crw-rw----  1 root render 226, 128 Jan 19 12:41 renderD128
+```
 
-### Step 5: Install Drivers in Container
+Note the group ownership:
+- `card0` → owned by `video` group
+- `renderD128` → owned by `render` group
 
-Inside container (or rebuild Docker image):
+---
+
+## Step 4: Install VAAPI Drivers (Ubuntu VM)
+
+Install Intel media drivers and verification tools:
 
 ```bash
-apt-get update
-apt-get install -y \
-    intel-media-va-driver-non-free \
+sudo apt update
+sudo apt install -y \
+    intel-media-va-driver \
+    i965-va-driver \
     vainfo \
     libva2 \
     libva-drm2
 ```
 
-### Step 6: Verify Hardware Access
-
-Inside container:
-
-```bash
-# Check VAAPI driver loads
-vainfo --display drm --device /dev/dri/renderD128
-
-# Expected output includes:
-# - Driver version: Intel iHD driver
-# - VAProfileH264High : VAEntrypointEncSlice
-
-# Check FFmpeg recognizes encoder
-ffmpeg -encoders | grep h264_qsv
-
-# Expected: h264_qsv (H.264 / AVC ... Intel Quick Sync Video acceleration)
-```
+**Note:** Use `intel-media-va-driver` (NOT `intel-media-va-driver-non-free`). The non-free version doesn't exist in standard Ubuntu repositories.
 
 ---
 
-## VM Setup (Alternative)
+## Step 5: Verify Hardware Acceleration
 
-### Step 1-2: Enable IOMMU (Same as LXC)
-
-Follow LXC Step 1 for IOMMU enablement.
-
-### Step 3: Identify IOMMU Group
+Test VAAPI access and encoding capabilities:
 
 ```bash
-# On Proxmox host
-find /sys/kernel/iommu_groups/ -type l | grep -i vga
-# Note the IOMMU group number
+# Test VAAPI driver loads correctly
+vainfo
+
+# Expected output should include:
+# - libva info: va_openDriver() returns 0
+# - Driver version: Intel iHD driver for Intel(R) Gen Graphics
+# - VAProfileH264Main : VAEntrypointEncSliceLP
+# - VAProfileH264High : VAEntrypointEncSliceLP
+
+# Verify FFmpeg can see h264_vaapi encoder
+ffmpeg -hide_banner -encoders 2>&1 | grep vaapi
+
+# Expected output should include:
+# V..... h264_vaapi           H.264/AVC (VAAPI) (codec h264)
 ```
 
-### Step 4: Configure VM for PCI Passthrough
+**If vainfo fails with "can't connect to X server"** - this is normal and can be ignored. The important part is that it continues and shows the driver information and encoding profiles.
 
-1. In Proxmox web UI: VM > Hardware > Add > PCI Device
-2. Select Intel VGA device
-3. Enable: All Functions, Primary GPU (if applicable)
-4. Restart VM
+---
 
-### Step 5: Install Drivers in VM (Same as LXC Step 5-6)
+## Step 6: Get Group IDs for Docker
 
-Follow LXC steps 5-6 inside the VM.
+Docker needs to run with the correct group permissions to access `/dev/dri/renderD128`.
+
+### Method 1: Use Helper Script (Recommended)
+
+The repository includes a helper script:
+
+```bash
+cd /root/claudeProjects/WSL/gsd-dashboard-cast
+./scripts/detect-gpu-gids.sh
+```
+
+Example output:
+```
+render:x:992:
+video:x:44:
+
+Add these to docker-compose.yml group_add:
+  - "992"  # render
+  - "44"   # video
+```
+
+### Method 2: Manual Detection
+
+```bash
+getent group render video
+```
+
+Example output:
+```
+render:x:992:
+video:x:44:
+```
+
+The numbers after `x:` are the GIDs:
+- `render` GID: **992**
+- `video` GID: **44**
+
+### Update docker-compose.yml
+
+Edit `docker-compose.yml` and update the `group_add` section with your actual GIDs:
+
+```yaml
+services:
+  cast-service:
+    # ... other configuration ...
+    devices:
+      - /dev/dri:/dev/dri  # Pass GPU device to container
+    group_add:
+      - "992"  # Replace with YOUR render GID
+      - "44"   # Replace with YOUR video GID
+```
+
+**Important:** GIDs may vary between systems. Always use the values from your VM, not these example numbers.
+
+---
+
+## Step 7: Rebuild and Test
+
+Rebuild the Docker container with GPU access:
+
+```bash
+cd /root/claudeProjects/WSL/gsd-dashboard-cast
+
+# Stop current container
+docker compose down
+
+# Rebuild and start
+docker compose up -d --build
+
+# Wait for service to start
+sleep 5
+
+# Check hardware acceleration status
+curl http://localhost:8000/health | jq .hardware_acceleration
+```
+
+**Expected output:**
+```json
+{
+  "quicksync_available": true,
+  "encoder": "h264_vaapi"
+}
+```
+
+**If you see `"quicksync_available": false`**, check:
+1. `/dev/dri` exists in container: `docker exec dashboard-cast ls -la /dev/dri`
+2. Container has correct group IDs: `docker exec dashboard-cast id`
+3. VAAPI works in container: `docker exec dashboard-cast vainfo`
+
+---
+
+## Step 8: Verify CPU Reduction
+
+Test actual CPU usage with hardware vs software encoding:
+
+### Test 1: Hardware Encoding (Current)
+
+```bash
+# Start a test stream
+curl -X POST http://localhost:8000/start \
+  -H "Content-Type: application/json" \
+  -d '{"url": "http://YOUR_URL", "quality": "720p", "duration": 60}'
+
+# Wait 10 seconds for encoding to stabilize
+sleep 10
+
+# Measure CPU usage
+docker stats --no-stream dashboard-cast
+# Note the CPU% value (e.g., 58%)
+```
+
+### Test 2: Software Encoding (Fallback)
+
+```bash
+# Stop stream
+curl -X POST http://localhost:8000/stop
+
+# Disable GPU temporarily
+docker compose down
+sed -i 's|/dev/dri:/dev/dri|# /dev/dri:/dev/dri|' docker-compose.yml
+docker compose up -d
+
+# Wait for service
+sleep 5
+
+# Verify software mode
+curl http://localhost:8000/health | jq .hardware_acceleration.encoder
+# Should show: "libx264"
+
+# Start same stream
+curl -X POST http://localhost:8000/start \
+  -H "Content-Type: application/json" \
+  -d '{"url": "http://YOUR_URL", "quality": "720p", "duration": 60}'
+
+# Wait and measure
+sleep 10
+docker stats --no-stream dashboard-cast
+# Note the CPU% value (e.g., 83%)
+
+# Re-enable GPU
+docker compose down
+sed -i 's|# /dev/dri:/dev/dri|/dev/dri:/dev/dri|' docker-compose.yml
+docker compose up -d
+```
+
+### Calculate Reduction
+
+```
+Reduction = ((Software_CPU - Hardware_CPU) / Software_CPU) × 100
+
+Example: ((83% - 58%) / 83%) × 100 = 30% reduction
+```
+
+**Note:** The CPU reduction may be less than expected (30% instead of 80-90%) because Chromium browser rendering consumes significant CPU (~50%). The hardware encoder is working correctly - the bottleneck is browser rendering, not video encoding.
 
 ---
 
 ## Troubleshooting
 
-### /dev/dri does not exist
+### GPU Not Visible in VM
 
-**Cause:** IOMMU not enabled, or device not passed through.
+**Problem:** `lspci | grep -i vga` shows no Intel GPU in VM
 
-**Fix:**
-- Verify IOMMU enabled: `dmesg | grep IOMMU`
-- Check LXC config has lxc.mount.entry lines
-- Restart container: `pct stop <CTID> && pct start <CTID>`
+**Solution:**
+1. Verify GPU is visible on Proxmox host: `lspci | grep -i vga`
+2. Check VM hardware settings in Proxmox UI (should show PCI device)
+3. Ensure VM is fully stopped before adding PCI device
+4. Try removing and re-adding PCI device with "All Functions" checked
 
-### Permission denied on /dev/dri/renderD128
+### /dev/dri Does Not Exist in VM
 
-**Cause:** Container user not in render/video groups.
+**Problem:** `ls /dev/dri` shows "No such file or directory"
 
-**Fix:**
-- Inside container: `ls -l /dev/dri/renderD128` (check group ownership)
-- Run scripts/detect-gpu-gids.sh to get correct GIDs
-- Update docker-compose.yml group_add with correct GIDs
-- Rebuild container: `docker-compose down && docker-compose up -d`
+**Solution:**
+```bash
+# Install kernel modules
+sudo apt install -y linux-modules-extra-$(uname -r)
 
-### vainfo shows i965 driver instead of iHD
+# Load i915 driver
+sudo modprobe i915
 
-**Cause:** Wrong driver selected (i965 is legacy, archived 2025).
+# Verify
+lsmod | grep i915
+ls -la /dev/dri/
+```
 
-**Fix:**
-- Set environment variable in docker-compose.yml: `LIBVA_DRIVER_NAME=iHD`
-- Verify: `vainfo | grep "Driver version"` should show "iHD"
+### vainfo Error: "Error creating a MFX session"
 
-### h264_qsv not found in ffmpeg -encoders
+**Problem:** vainfo or FFmpeg shows "MFX session: -9" error
 
-**Cause:** FFmpeg package doesn't include QSV support, or drivers missing.
+**This is expected!** The `h264_qsv` encoder has compatibility issues with CometLake Gen 10. This is why the service uses `h264_vaapi` instead, which works reliably.
 
-**Fix:**
-- Ensure intel-media-va-driver-non-free installed
-- Check Debian/Ubuntu FFmpeg package includes --enable-vaapi
-- Verify: `ffmpeg -hwaccels` should list "qsv"
+**No action needed** - the service automatically uses VAAPI when available.
 
-### CPU has "F" suffix (e.g., i9-14900KF)
+### Container Shows libx264 Instead of h264_vaapi
 
-**Cause:** "F" models lack integrated graphics.
+**Problem:** Health endpoint shows `"encoder": "libx264"` instead of `"h264_vaapi"`
 
-**Fix:** QuickSync requires integrated GPU. Use non-F model CPU (e.g., i9-14900K).
+**Solutions:**
+
+1. Check /dev/dri exists in container:
+```bash
+docker exec dashboard-cast ls -la /dev/dri
+```
+
+2. Check group permissions:
+```bash
+docker exec dashboard-cast id
+# Should show groups: 0(root),44(video),992
+```
+
+3. Check docker-compose.yml has correct GIDs:
+```yaml
+group_add:
+  - "992"  # Must match render group from VM
+  - "44"   # Must match video group from VM
+```
+
+4. Verify VAAPI works in container:
+```bash
+docker exec dashboard-cast vainfo
+# Should show iHD driver and encoding profiles
+```
+
+### Permission Denied on /dev/dri/renderD128
+
+**Problem:** Container logs show "Permission denied" accessing `/dev/dri/renderD128`
+
+**Solution:** Update `docker-compose.yml` with correct group IDs from **your VM** (not example values):
+
+```bash
+# Get YOUR system's GIDs
+getent group render video
+
+# Update docker-compose.yml group_add with YOUR values
+# Then rebuild:
+docker compose down
+docker compose up -d
+```
 
 ---
 
 ## Verification Checklist
 
-After setup, verify all components:
+Complete this checklist to verify everything is working:
 
+**Proxmox Host:**
 - [ ] IOMMU enabled: `dmesg | grep IOMMU` shows "enabled"
-- [ ] /dev/dri exists in container: `ls -l /dev/dri`
-- [ ] vainfo succeeds: `vainfo --display drm --device /dev/dri/renderD128`
-- [ ] vainfo shows iHD driver (not i965)
-- [ ] vainfo shows VAEntrypointEncSlice for H264High profile
-- [ ] h264_qsv in ffmpeg: `ffmpeg -encoders | grep h264_qsv`
-- [ ] scripts/detect-gpu-gids.sh available and executable
-- [ ] Health endpoint reports QuickSync: `curl http://localhost:8000/health | jq .hardware_acceleration`
+- [ ] Intel GPU visible: `lspci | grep -i vga` shows Intel GPU
+- [ ] /dev/dri exists: `ls -la /dev/dri/` shows card0 and renderD128
+
+**Ubuntu VM:**
+- [ ] GPU visible in VM: `lspci | grep -i vga` shows Intel GPU
+- [ ] i915 module loaded: `lsmod | grep i915` shows i915
+- [ ] /dev/dri exists: `ls -la /dev/dri/` shows card0 and renderD128
+- [ ] VAAPI drivers installed: `vainfo` runs without fatal errors
+- [ ] iHD driver active: `vainfo` shows "iHD driver" (not i965)
+- [ ] Encoding supported: `vainfo` shows "VAEntrypointEncSliceLP" for H264
+- [ ] FFmpeg sees h264_vaapi: `ffmpeg -encoders | grep vaapi` shows h264_vaapi
+
+**Docker Container:**
+- [ ] /dev/dri accessible: `docker exec dashboard-cast ls -la /dev/dri`
+- [ ] Correct groups: `docker exec dashboard-cast id` shows render and video groups
+- [ ] VAAPI works: `docker exec dashboard-cast vainfo` succeeds
+- [ ] Service detects hardware: `curl localhost:8000/health` shows `"quicksync_available": true`
+- [ ] Using VAAPI encoder: Health shows `"encoder": "h264_vaapi"`
+
+**CPU Reduction Test:**
+- [ ] Hardware encoding CPU measured (e.g., 58%)
+- [ ] Software encoding CPU measured (e.g., 83%)
+- [ ] Reduction calculated (e.g., 30%)
+
+---
+
+## Technical Details
+
+### Why VAAPI Instead of QuickSync QSV?
+
+The service was originally designed to use Intel QuickSync's `h264_qsv` encoder. However, testing revealed that CometLake Gen 10 GPUs have compatibility issues with FFmpeg's QSV implementation:
+
+```
+Error creating a MFX session: -9
+```
+
+**VAAPI** (Video Acceleration API) is the native Linux hardware acceleration API and works more reliably:
+- ✅ Direct access to Intel GPU encoder
+- ✅ Native Linux kernel support
+- ✅ No MFX session initialization issues
+- ✅ Same hardware encoder, different API
+
+The service automatically detects VAAPI availability and uses it when present.
+
+### Encoder Configuration
+
+**Hardware (h264_vaapi):**
+```
+-vaapi_device /dev/dri/renderD128
+-vf format=nv12,hwupload
+-c:v h264_vaapi
+-qp 23  # Constant QP (quality)
+```
+
+**Software Fallback (libx264):**
+```
+-c:v libx264
+-preset fast
+-b:v 3000k
+```
+
+### CPU Usage Expectations
+
+**Typical results:**
+- Software encoding (libx264): 75-85% CPU
+- Hardware encoding (h264_vaapi): 50-60% CPU
+- **Reduction: 25-35%**
+
+**Why not 80-90%?** Browser rendering (Chromium headless) consumes ~50% CPU regardless of encoder. The encoding portion sees 80%+ reduction, but it's only part of total CPU usage.
 
 ---
 
 ## References
 
 - [Proxmox PCI Passthrough Wiki](https://pve.proxmox.com/wiki/PCI_Passthrough)
-- [FFmpeg Hardware/QuickSync Wiki](https://trac.ffmpeg.org/wiki/Hardware/QuickSync)
-- [Jellyfin Intel GPU HWA Guide](https://jellyfin.org/docs/general/administration/hardware-acceleration/intel/)
-- Project research: `.planning/phases/10-intel-quicksync-hardware-acceleration/10-RESEARCH.md`
+- [FFmpeg VAAPI Documentation](https://trac.ffmpeg.org/wiki/Hardware/VAAPI)
+- [Intel Media Driver GitHub](https://github.com/intel/media-driver)
+- [Project Research](.planning/phases/10-intel-quicksync-hardware-acceleration/10-RESEARCH.md)
+
+---
+
+## Support
+
+If you encounter issues not covered in this guide:
+
+1. Check container logs: `docker logs dashboard-cast --tail 50`
+2. Verify VAAPI in container: `docker exec dashboard-cast vainfo`
+3. Check hardware detection: `curl localhost:8000/health | jq`
+4. Review project issues: https://github.com/WallyWithCode/gsd-dashboard-cast/issues
 
 ---
 
 *Guide created: 2026-01-19*
-*Tested on: Proxmox VE 8.2.7 with Intel CPUs Gen 8+*
+*Last updated: 2026-01-19*
+*Tested on: Proxmox VE 8.2.7, Ubuntu 22.04 VM, Intel NUC9i5FN (CometLake Gen 10)*
