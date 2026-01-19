@@ -20,8 +20,8 @@ services:
       - /dev/dri:/dev/dri  # Pass entire DRI directory (card0 and renderD128)
     # GPU group permissions - Run scripts/detect-gpu-gids.sh to get actual GIDs
     group_add:
-      - "RENDER_GID"  # Replace with actual GID from detect-gpu-gids.sh
-      - "VIDEO_GID"   # Replace with actual GID from detect-gpu-gids.sh
+      - "992"  # render GID from VM
+      - "44"   # video GID from VM
     # network_mode: host  # Only works on native Linux - not Docker Desktop
     ports:
       - "8000:8000"   # Webhook API

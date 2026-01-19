@@ -96,6 +96,10 @@ class FFmpegEncoder:
         framerate = self.quality.framerate
         preset = self.quality.preset
 
+        # Get hardware-aware encoder configuration
+        encoder_config = self.hw_accel.get_encoder_config()
+        self.encoder = encoder_config['encoder']  # Store for logging
+
         # Base arguments for x11grab input (video source)
         args = [
             # Video input configuration
@@ -113,9 +117,6 @@ class FFmpegEncoder:
             '-map', '1:a',  # Audio from anullsrc
 
             # Video codec and encoding settings (hardware-aware)
-            encoder_config = self.hw_accel.get_encoder_config()
-            self.encoder = encoder_config['encoder']  # Store for logging
-
             '-c:v', self.encoder,
             '-pix_fmt', 'yuv420p',
         ]
@@ -145,7 +146,7 @@ class FFmpegEncoder:
             '-ar', '44100',
             '-ac', '2',
             '-shortest',  # End when shortest input ends (video)
-        ]
+        ])
 
         # Latency-specific tuning
         if self.quality.latency_mode == 'low':
