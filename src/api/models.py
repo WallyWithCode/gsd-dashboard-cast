@@ -38,3 +38,4 @@ class HealthResponse(BaseModel):
     status: str  # "healthy" or "degraded"
     active_streams: int
     cast_device: str  # "available" or "unavailable"
+    hardware_acceleration: dict  # QuickSync status

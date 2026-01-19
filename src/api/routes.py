@@ -8,6 +8,7 @@ import structlog
 
 from src.api.models import StartRequest, StartResponse, StopResponse, StatusResponse, HealthResponse
 from src.cast.discovery import get_cast_device
+from src.video.hardware import HardwareAcceleration
 
 logger = structlog.get_logger()
 
@@ -90,16 +91,24 @@ def register_routes(app):
     async def health_check():
         """Health check for monitoring.
 
-        Checks if Cast device is discoverable and reports active streams.
+        Checks Cast device availability, active streams, and hardware acceleration status.
         """
-        # Check if Cast device is discoverable
+        # Check Cast device
         device = await get_cast_device()
         device_available = device is not None
+
+        # Check hardware acceleration
+        hw_accel = HardwareAcceleration()
+        encoder_config = hw_accel.get_encoder_config()
 
         status = "healthy" if device_available else "degraded"
 
         return HealthResponse(
             status=status,
             active_streams=len(app.state.stream_tracker.active_tasks),
-            cast_device="available" if device_available else "unavailable"
+            cast_device="available" if device_available else "unavailable",
+            hardware_acceleration={
+                "quicksync_available": hw_accel.is_qsv_available(),
+                "encoder": encoder_config['encoder']
+            }
         )
