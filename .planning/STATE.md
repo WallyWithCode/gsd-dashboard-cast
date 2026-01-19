@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-01-18)
 ## Current Position
 
 Phase: 9 of 13 (HLS Buffering Fix)
-Plan: 1 of 1 in phase
+Plan: 2 of 2 in phase
 Status: Phase complete
-Last activity: 2026-01-18 — Completed 09-01-PLAN.md (HLS Buffering Configuration Fix)
+Last activity: 2026-01-19 — Completed 09-02-PLAN.md (FFmpeg Log Forwarding)
 
-Progress: [█████████░░░░░░░░░░░] 45% (21/? plans complete across all phases)
+Progress: [█████████░░░░░░░░░░░] 46% (22/? plans complete across all phases)
 
 ## Milestones
 
@@ -35,9 +35,9 @@ See: .planning/MILESTONES.md for full milestone history.
 - Combined execution time: ~2.5 hours
 
 **v2.0 Velocity:**
-- Total plans completed: 1
-- Average duration: 15 min
-- Total execution time: ~15 min
+- Total plans completed: 2
+- Average duration: 9 min
+- Total execution time: ~18 min
 
 **By Phase:**
 
@@ -45,10 +45,10 @@ See: .planning/MILESTONES.md for full milestone history.
 |-------|-------|-------|----------|
 | v1.0 (1-4) | 12 | ~78 min | 6.5 min |
 | v1.1 (5-8) | 8 | ~43 min | 5.4 min |
-| v2.0 (9-13) | 1 | ~15 min | 15 min |
+| v2.0 (9-13) | 2 | ~18 min | 9 min |
 
 **Recent Trend:**
-- Phase 9 complete: 1 plan, 15 min total
+- Phase 9 complete: 2 plans, 18 min total (15 min + 3 min)
 
 ## Accumulated Context
 
@@ -57,6 +57,9 @@ See: .planning/MILESTONES.md for full milestone history.
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting v2.0 work:
 
+- v2.0 Phase 9: FFmpeg log task cancelled BEFORE process.terminate() — Prevents BrokenPipeError from reading closed pipe
+- v2.0 Phase 9: Level-based FFmpeg logging (ERROR/WARNING/DEBUG/INFO) — Classifies output by content keywords
+- v2.0 Phase 9: FFmpeg stderr-only reading — All FFmpeg output goes to stderr, stdout contains stream data
 - v2.0 Phase 9: HLS buffer window increased from 20s to 40s (hls_list_size 10→20) — Prevents Cast device underruns during streaming
 - v2.0 Phase 9: Added hls_delete_threshold=5 — Retains segments beyond playlist for buffering safety
 - v2.0 Phase 9: Added omit_endlist flag — Signals continuous streaming mode to Cast devices (not VOD)
@@ -76,6 +79,7 @@ Recent decisions affecting v2.0 work:
 
 ### Resolved Todos
 
+- **FFmpeg subprocess logging** — ✅ RESOLVED in Phase 9 (GAP-09-01: FFmpeg stdout/stderr now forwarded to application logs with level-based classification)
 - **HLS stream buffering issue** — ✅ RESOLVED in Phase 9 (HLS buffer window increased to 40s, segment retention added, continuous streaming signal implemented)
 
 ### Blockers/Concerns
@@ -85,6 +89,7 @@ Recent decisions affecting v2.0 work:
 - CPU-bound software encoding (Phase 13 target)
 
 **Resolved in v2.0:**
+- ✅ FFmpeg diagnostic gap (Phase 9 - GAP-09-01 closed, subprocess logging now captured)
 - ✅ HLS 6-second freeze bug (Phase 9 - buffer window and segment retention fixed)
 
 **Resolved in previous milestones:**
@@ -93,18 +98,19 @@ Recent decisions affecting v2.0 work:
 
 ## Session Continuity
 
-Last session: 2026-01-18 (Phase 9 execution complete)
-Stopped at: Completed 09-01-PLAN.md - HLS Buffering Configuration Fix
+Last session: 2026-01-19 (Phase 9 gap closure complete)
+Stopped at: Completed 09-02-PLAN.md - FFmpeg Log Forwarding
 Resume with: `/gsd:plan-phase 10` to plan fMP4 Latency Validation
 Resume file: None
 
 ### Context for Next Session
-- Phase 9 complete: HLS 6-second freeze resolved
-- HLS buffering configuration updated: 40s buffer, segment retention, continuous streaming signal
-- Startup cleanup implemented for stale HLS segments
-- User verified: Stream plays continuously without freezing
+- Phase 9 complete: HLS 6-second freeze resolved + FFmpeg logging diagnostic gap closed
+- HLS buffering: 40s buffer window, segment retention, continuous streaming signal
+- FFmpeg logging: Background task forwards stdout/stderr to application logs with level-based classification
+- Diagnostic capabilities established: encoding failures diagnosable, HLS segment creation visible
+- GAP-09-01 closed: FFmpeg subprocess output now captured and forwarded
 - Ready to begin Phase 10: fMP4 Latency Validation (validates existing fMP4 low-latency mode)
 - Remaining v2.0 phases: 10 (fMP4), 11 (stop detection), 12 (process lifecycle), 13 (hardware acceleration)
 
 ---
-*State updated: 2026-01-18 after Phase 9 execution complete*
+*State updated: 2026-01-19 after Phase 9 gap closure complete*
