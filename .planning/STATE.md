@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-01-18)
 ## Current Position
 
 Phase: 10 of 13 (Intel QuickSync Hardware Acceleration)
-Plan: 3 of 4 in phase
-Status: In progress
-Last activity: 2026-01-19 — Completed 10-02-PLAN.md (Hardware Detection Module)
+Plan: 4 of 4 in phase
+Status: Phase complete
+Last activity: 2026-01-19 — Completed 10-04-PLAN.md (Testing and Documentation)
 
-Progress: [█████████░░░░░░░░░░░] 50% (25/? plans complete across all phases)
+Progress: [██████████░░░░░░░░░░] 52% (26/50 estimated plans complete across all phases)
 
 ## Milestones
 
@@ -35,9 +35,9 @@ See: .planning/MILESTONES.md for full milestone history.
 - Combined execution time: ~2.5 hours
 
 **v2.0 Velocity:**
-- Total plans completed: 5
+- Total plans completed: 6
 - Average duration: 7.0 min
-- Total execution time: ~38 min
+- Total execution time: ~42 min
 
 **By Phase:**
 
@@ -45,11 +45,11 @@ See: .planning/MILESTONES.md for full milestone history.
 |-------|-------|-------|----------|
 | v1.0 (1-4) | 12 | ~78 min | 6.5 min |
 | v1.1 (5-8) | 8 | ~43 min | 5.4 min |
-| v2.0 (9-13) | 5 | ~38 min | 7.6 min |
+| v2.0 (9-13) | 6 | ~42 min | 7.0 min |
 
 **Recent Trend:**
 - Phase 9 complete: 2 plans, 18 min total (15 min + 3 min)
-- Phase 10 in progress: 3 plans complete, 20 min (10-01: 7 min, 10-02: 8 min, 10-03: 5 min)
+- Phase 10 complete: 4 plans, 24 min total (10-01: 7 min, 10-02: 8 min, 10-03: 5 min, 10-04: 4 min)
 
 ## Accumulated Context
 
@@ -58,6 +58,9 @@ See: .planning/MILESTONES.md for full milestone history.
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting v2.0 work:
 
+- v2.0 Phase 10-04: LXC container approach recommended over VM passthrough - simpler setup, better performance for containerized service
+- v2.0 Phase 10-04: Hardware validation deferred to production environment - test VM lacks GPU passthrough, but software fallback verification confirms graceful degradation works correctly
+- v2.0 Phase 10-04: IOMMU enablement required even for LXC containers - not just for VMs, kernel parameter needed for device passthrough
 - v2.0 Phase 10-03: self.encoder instance variable pattern - encoder name stored in __init__ for cross-method access between build_ffmpeg_args() and __aenter__() logging
 - v2.0 Phase 10-03: ICQ mode (global_quality) for h264_qsv - QuickSync uses global_quality=23 with look_ahead instead of bitrate/preset (they conflict)
 - v2.0 Phase 10-03: Empty encoder_args for libx264 fallback - reuses existing preset/bitrate config from encoder.py, avoids duplication
@@ -97,10 +100,10 @@ Recent decisions affecting v2.0 work:
 ### Blockers/Concerns
 
 **v2.0 addresses these known issues:**
-- Orphaned FFmpeg processes (Phase 12 target)
-- CPU-bound software encoding (Phase 13 target)
+- Orphaned FFmpeg processes (Phase 12/13 target)
 
 **Resolved in v2.0:**
+- ✅ Intel QuickSync hardware acceleration (Phase 10 - complete with software fallback, production validation pending)
 - ✅ FFmpeg diagnostic gap (Phase 9 - GAP-09-01 closed, subprocess logging now captured)
 - ✅ HLS 6-second freeze bug (Phase 9 - buffer window and segment retention fixed)
 
@@ -110,41 +113,34 @@ Recent decisions affecting v2.0 work:
 
 ## Session Continuity
 
-Last session: 2026-01-19 (Phase 10-02 complete: Hardware Detection Module)
-Stopped at: Completed 10-02-PLAN.md execution with user verification
-Resume with: Continue Phase 10 planning/execution (next plan: 10-04 Testing)
+Last session: 2026-01-19 (Phase 10 complete: Intel QuickSync Hardware Acceleration)
+Stopped at: Completed 10-04-PLAN.md execution (Testing and Documentation)
+Resume with: Begin Phase 11 planning (fMP4 Low-Latency Validation) or continue v2.0 work
 Resume file: None
 
 ### Context for Next Session
-- Phase 10-03 complete: FFmpeg encoder integration with hardware acceleration
-  - FFmpegEncoder imports and uses HardwareAcceleration class
-  - Encoder dynamically selects h264_qsv or libx264 based on hardware availability
-  - Conditional rate control: ICQ mode (global_quality) for QSV, bitrate/preset for libx264
-  - Health endpoint reports hardware acceleration status (quicksync_available, encoder)
-  - Encoder name logged in startup messages for debugging
-- Phase 10-02 complete: Hardware detection module (SUMMARY created)
-  - HardwareAcceleration class with runtime QuickSync detection via vainfo
-  - Three-step verification: ffmpeg encoder, vainfo device access, VAEntrypointEncSlice
-  - Graceful fallback to software encoding when hardware unavailable
-  - Exception handling verified (FileNotFoundError, TimeoutExpired)
-  - User verification passed: software fallback works, service starts successfully
-- Phase 10-01 complete: Docker infrastructure configured for Intel QuickSync
-  - FFmpeg 7.1.3 with h264_qsv encoder verified in container
-  - Intel iHD VAAPI drivers installed
-  - GPU device passthrough configured (/dev/dri)
-- **User action required before testing:**
-  - Run scripts/detect-gpu-gids.sh to get render and video GIDs
-  - Replace placeholder values in docker-compose.yml group_add section
-  - Verify /dev/dri device exists on host system
-  - Confirm Intel GPU with QuickSync support available (lspci | grep -i vga)
-- **Next steps for Phase 10:**
-  - Plan 10-04: Test hardware acceleration with actual GPU, verify performance improvement
-  - Verify software fallback works correctly
-  - Check health endpoint reports correct encoder status
-- **Technical notes:**
-  - ICQ mode quality target: global_quality=23 (similar to CRF)
-  - Look-ahead enabled for h264_qsv: 40-frame depth
-  - libx264 fallback uses existing preset/bitrate config from encoder.py
+- **Phase 10 complete:** Intel QuickSync hardware acceleration with graceful software fallback
+  - Four plans complete: Docker infrastructure (10-01), hardware detection (10-02), encoder integration (10-03), testing and documentation (10-04)
+  - Total phase duration: 24 minutes
+  - Documentation: docs/PROXMOX_GPU_PASSTHROUGH.md (243 lines covering LXC and VM approaches)
+  - Software fallback verified: h264_qsv encoder present, libx264 fallback functional when GPU unavailable
+  - Health endpoint reports hardware acceleration status correctly
+  - Hardware validation deferred to production environment (no GPU access in test VM)
+- **Production deployment readiness:**
+  - Complete guide available for enabling GPU passthrough in Proxmox
+  - LXC container approach recommended (simpler than VM passthrough)
+  - IOMMU enablement required even for LXC containers
+  - scripts/detect-gpu-gids.sh provides correct GID values for docker-compose.yml
+  - Post-deployment: measure CPU reduction with h264_qsv vs libx264 to validate HWAC-04 (80-90% reduction)
+- **Technical implementation:**
+  - HardwareAcceleration class: runtime QuickSync detection via three-step verification (ffmpeg encoder, vainfo device access, VAEntrypointEncSlice)
+  - FFmpegEncoder: dynamic encoder selection (h264_qsv or libx264) with conditional rate control (ICQ mode for QSV, bitrate/preset for libx264)
+  - Health endpoint: reports quicksync_available and active encoder
+  - Docker infrastructure: Intel media drivers, GPU device passthrough (/dev/dri), group permissions
+- **Next phase options:**
+  - Phase 11: fMP4 low-latency validation (depends on Phase 10 for performance testing)
+  - Phase 12: Cast session state monitoring (independent, enables device stop detection)
+  - Phase 13: Process lifecycle management (depends on Phase 12 for stop detection)
 
 ---
-*State updated: 2026-01-19 after Phase 9 complete and roadmap reordering*
+*State updated: 2026-01-19 after Phase 10 complete (Intel QuickSync Hardware Acceleration)*
